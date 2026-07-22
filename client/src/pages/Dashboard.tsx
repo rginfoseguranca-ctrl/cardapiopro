@@ -1,0 +1,1372 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getAbandonedCarts, getCashbackSettings, setCashbackSettings, getCustomerSegmentation, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getInvoices, issueInvoice, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getBlogPosts, createBlogPost, deleteBlogPost, getLeads, getPartners, getStoreSettings, updateStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, type StoreSettings } from '../api/client'
+import { exportToCSV, ordersToCSV } from '../utils/export'
+import React, { useState, useRef, useEffect } from 'react'
+import DashboardSidebar from '../components/DashboardSidebar'
+import DashboardHeader from '../components/DashboardHeader'
+import DashboardCard from '../components/DashboardCard'
+import ComplementsPanel from '../components/ComplementsPanel'
+import FinancePanel from '../components/FinancePanel'
+import DriversPanel from '../components/DriversPanel'
+import OnboardingChecklist from '../components/OnboardingChecklist'
+import StoresPanel from '../components/StoresPanel'
+import AdvancedInventoryPanel from '../components/AdvancedInventoryPanel'
+
+function SalesChart({ data }: { data: { day: string; count: number; revenue: number }[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !data?.length) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const dpr = window.devicePixelRatio || 1
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = rect.width * dpr
+    canvas.height = rect.height * dpr
+    ctx.scale(dpr, dpr)
+
+    const w = rect.width
+    const h = rect.height
+    const pad = { top: 20, bottom: 30, left: 40, right: 20 }
+    const chartW = w - pad.left - pad.right
+    const chartH = h - pad.top - pad.bottom
+
+    ctx.clearRect(0, 0, w, h)
+
+    const max = Math.max(...data.map(d => d.count), 1)
+    const barW = Math.min(chartW / data.length * 0.6, 40)
+    const gap = chartW / data.length
+
+    data.forEach((d, i) => {
+      const x = pad.left + i * gap + (gap - barW) / 2
+      const barH = (d.count / max) * chartH
+      const y = pad.top + chartH - barH
+
+      const grad = ctx.createLinearGradient(x, y, x, pad.top + chartH)
+      grad.addColorStop(0, '#e74c3c')
+      grad.addColorStop(1, '#f5b7b1')
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.roundRect(x, y, barW, barH, [4, 4, 0, 0])
+      ctx.fill()
+
+      ctx.fillStyle = '#7f8c8d'
+      ctx.font = '11px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(d.count.toString(), x + barW / 2, y - 6)
+      ctx.fillText(d.day.slice(0, 3), x + barW / 2, pad.top + chartH + 18)
+    })
+  }, [data])
+
+  if (!data?.length) return <p className="text-muted text-sm">Sem dados esta semana</p>
+
+  return <canvas ref={canvasRef} style={{ width: '100%', height: 200 }} />
+}
+
+export default function Dashboard() {
+  const queryClient = useQueryClient()
+  const [filter, setFilter] = useState('all')
+  const [tab, setTab] = useState<string>('dashboard')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  const { data: summary } = useQuery({ queryKey: ['dashboard'], queryFn: getDashboardSummary, refetchInterval: 10000 })
+  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: getOrders, refetchInterval: 5000, enabled: tab === 'orders' })
+  const { data: tables } = useQuery({ queryKey: ['tables'], queryFn: getTables, enabled: tab === 'tables' })
+  const { data: coupons } = useQuery({ queryKey: ['coupons'], queryFn: getCoupons, enabled: tab === 'coupons' })
+  const { data: rewards } = useQuery({ queryKey: ['rewards'], queryFn: getLoyaltyRewards, enabled: tab === 'loyalty' })
+  const { data: campaigns } = useQuery({ queryKey: ['campaigns'], queryFn: getCampaigns, enabled: tab === 'campaigns' })
+  const { data: abandoned } = useQuery({ queryKey: ['abandoned'], queryFn: getAbandonedCarts, enabled: tab === 'abandoned' })
+  const { data: cashbackSettings } = useQuery({ queryKey: ['cashback'], queryFn: getCashbackSettings, enabled: tab === 'cashback' })
+  const { data: segmentation } = useQuery({ queryKey: ['segmentation'], queryFn: getCustomerSegmentation, enabled: tab === 'crm' })
+  const { data: integrations } = useQuery({ queryKey: ['integrations'], queryFn: getIntegrations, enabled: tab === 'integrations' })
+  const { data: blogPosts } = useQuery({ queryKey: ['blogPosts'], queryFn: () => getBlogPosts(true), enabled: tab === 'blog' })
+  const { data: leads } = useQuery({ queryKey: ['leads'], queryFn: getLeads, enabled: tab === 'leads' })
+  const { data: partners } = useQuery({ queryKey: ['partners'], queryFn: getPartners, enabled: tab === 'partners' })
+  const { data: storeSettings } = useQuery({ queryKey: ['storeSettings'], queryFn: getStoreSettings })
+
+  const createTableMut = useMutation({ mutationFn: createTable, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tables'] }); setNewTableNum('') } })
+  const [newTableNum, setNewTableNum] = useState('')
+  const deleteTableMut = useMutation({ mutationFn: deleteTable, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tables'] }) })
+  const deleteCouponMut = useMutation({ mutationFn: deleteCoupon, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coupons'] }) })
+  const filteredOrders = filter === 'all' ? orders : orders?.filter((o: any) => o.status === filter)
+  const scheduledOrders = orders?.filter((o: any) => o.scheduled_at) || []
+
+  const storeName = storeSettings?.storeName || 'Dashboard'
+  const storeIcon = storeSettings?.storeIcon || '📊'
+  const pendingCount = orders?.filter((o: any) => o.status === 'pending').length || 0
+
+  const badges: Record<string, number> = {
+    orders: pendingCount,
+    impressoras: 0,
+  }
+
+  return (
+    <div className="dashboard-layout">
+      <DashboardSidebar
+        activeTab={tab}
+        onTabChange={setTab}
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+        badges={badges}
+        storeIcon={storeIcon}
+        storeName={storeName}
+      />
+      <main className="dashboard-main">
+        <DashboardHeader
+          activeTab={tab}
+          onMenuClick={() => setMobileOpen(true)}
+          storeIcon={storeIcon}
+          storeName={storeName}
+        />
+
+        {/* ─── Dashboard Overview ─── */}
+        {tab === 'dashboard' && (
+          <div className="panel-fadeIn">
+            <OnboardingChecklist />
+            {summary && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 20 }}>
+                  <DashboardCard icon="📋" value={summary.todayOrders} label="Pedidos Hoje" bg="#fef9e7" />
+                  <DashboardCard icon="💰" value={`R$ ${summary.todayRevenue.toFixed(2)}`} label="Faturamento Hoje" bg="#d5f5e3" />
+                  <DashboardCard icon="⏳" value={summary.pendingOrders} label="Pendentes" bg="#fadbd8" />
+                  <DashboardCard icon="📅" value={scheduledOrders.length} label="Agendados" bg="#d6eaf8" />
+                  <DashboardCard icon="📈" value={`R$ ${summary.totalRevenue.toFixed(2)}`} label="Faturamento Total" />
+                  <DashboardCard icon="📊" value={summary.totalOrders} label="Total Pedidos" />
+                </div>
+
+                <div className="chart-container" style={{ marginBottom: 20 }}>
+                  <h3 className="chart-title">📈 Vendas nos Últimos Dias</h3>
+                  <SalesChart data={summary.ordersByDay || []} />
+                </div>
+              </>
+            )}
+            {!summary && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 20 }}>
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="card" style={{ padding: 20, animationDelay: `${i * 0.05}s` }}>
+                    <div className="skeleton" style={{ width: '60%', height: 14, marginBottom: 8 }} />
+                    <div className="skeleton" style={{ width: '40%', height: 24 }} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <DashboardCard>
+                <h3 className="font-semibold mb-sm" style={{ fontSize: '.9rem' }}>📋 Acesso Rápido</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {[
+                    { tab: 'orders', icon: '📋', label: 'Pedidos' },
+                    { tab: 'produtos', icon: '🍔', label: 'Produtos' },
+                    { tab: 'categorias', icon: '📂', label: 'Categorias' },
+                    { tab: 'crm', icon: '👥', label: 'Clientes' },
+                    { tab: 'caixa', icon: '💰', label: 'Caixa' },
+                    { tab: 'store', icon: '⚙️', label: 'Config. Loja' },
+                    { tab: 'impressoras', icon: '🖨️', label: 'Impressoras' },
+                  ].map(item => (
+                    <button key={item.tab} className="btn btn-outline btn-sm" onClick={() => setTab(item.tab)}>
+                      {item.icon} {item.label}
+                    </button>
+                  ))}
+                </div>
+              </DashboardCard>
+
+              <DashboardCard>
+                <h3 className="font-semibold mb-sm" style={{ fontSize: '.9rem' }}>🆕 Atalhos</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <a href="/kds" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">👨‍🍳 Abrir KDS Cozinha</a>
+                  <a href="/" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">🔗 Ver Cardápio</a>
+                  <a href="/dashboard/customers" className="btn btn-outline btn-sm">👥 Gerenciar Clientes</a>
+                </div>
+              </DashboardCard>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Orders ─── */}
+        {tab === 'orders' && (
+          <div className="panel-fadeIn">
+            <div className="dashboard-filter-bar">
+              {['all', 'pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'].map(s => (
+                <button key={s} className={`dashboard-filter-btn ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
+                  {filterLabels[s] || s}
+                </button>
+              ))}
+              <button className="dashboard-filter-btn" onClick={() => { if (filteredOrders?.length) exportToCSV(ordersToCSV(filteredOrders), 'pedidos') }}
+                style={{ marginLeft: 'auto', fontSize: '.75rem' }}>
+                📥 Exportar CSV
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {filteredOrders?.map((order: any) => <OrderCard key={order.id} order={order} />)}
+              {filteredOrders?.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-light)', padding: 40 }}>Nenhum pedido encontrado</p>}
+            </div>
+          </div>
+        )}
+
+        {tab === 'tables' && <TablesPanel tables={tables} createTableMut={createTableMut} deleteTableMut={deleteTableMut} newTableNum={newTableNum} setNewTableNum={setNewTableNum} />}
+        {tab === 'coupons' && <CouponsPanel coupons={coupons} deleteCouponMut={deleteCouponMut} />}
+        {tab === 'loyalty' && <LoyaltyPanel rewards={rewards} />}
+        {tab === 'campaigns' && <CampaignsPanel campaigns={campaigns} />}
+        {tab === 'abandoned' && <AbandonedPanel carts={abandoned} />}
+        {tab === 'cashback' && <CashbackPanel settings={cashbackSettings} />}
+        {tab === 'crm' && <CRMPanel segmentation={segmentation} />}
+        {tab === 'integrations' && <IntegrationsPanel integrations={integrations} />}
+        {tab === 'financeiro' && <FinancePanel />}
+        {tab === 'entregadores' && <DriversPanel />}
+        {tab === 'multiloja' && <StoresPanel />}
+        {tab === 'estoque-avancado' && <AdvancedInventoryPanel />}
+        {tab === 'pdv' && <PDVPanel />}
+        {tab === 'produtos' && <ProdutosPanel />}
+        {tab === 'complements' && <ComplementsPanel />}
+        {tab === 'caixa' && <CaixaPanel />}
+        {tab === 'estoque' && <EstoquePanel />}
+        {tab === 'notas' && <NotasPanel />}
+        {tab === 'rotas' && <RotasPanel />}
+        {tab === 'impressoras' && <ImpressorasPanel />}
+        {tab === 'fiado' && <FiadoPanel />}
+        {tab === 'blog' && <BlogPanel posts={blogPosts} />}
+        {tab === 'leads' && <LeadsPanel leads={leads} />}
+        {tab === 'partners' && <PartnersPanel partners={partners} />}
+        {tab === 'categorias' && <CategoriasPanel />}
+        {tab === 'store' && <StoreSettingsPanel settings={storeSettings} />}
+      </main>
+    </div>
+  )
+}
+
+/* ─── Order Card ─── */
+const statusColors: Record<string, string> = {
+  pending: '#e74c3c', confirmed: '#f39c12', preparing: '#3498db',
+  ready: '#27ae60', delivered: '#95a5a6', cancelled: '#bdc3c7',
+}
+
+const statusLabels: Record<string, string> = {
+  pending: '⏳ Pendente', confirmed: '✅ Confirmado',
+  preparing: '👨‍🍳 Preparando', ready: '🎉 Pronto',
+  delivered: '📦 Entregue', cancelled: '❌ Cancelado',
+}
+
+const filterLabels: Record<string, string> = {
+  all: '📋 Todos', ...statusLabels,
+}
+
+function OrderCard({ order }: { order: any }) {
+  const queryClient = useQueryClient()
+  const statusMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateOrderStatus(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] })
+  })
+
+  const nextStatus: Record<string, { label: string; status: string }[]> = {
+    pending: [
+      { label: '✅ Confirmar', status: 'confirmed' },
+      { label: '❌ Cancelar', status: 'cancelled' },
+    ],
+    confirmed: [
+      { label: '👨‍🍳 Preparar', status: 'preparing' },
+      { label: '❌ Cancelar', status: 'cancelled' },
+    ],
+    preparing: [
+      { label: '🎉 Pronto!', status: 'ready' },
+    ],
+    ready: [
+      { label: '📦 Saiu p/ Entrega', status: 'delivered' },
+      { label: '✅ Concluir', status: 'delivered' },
+    ],
+  }
+
+  const actions = nextStatus[order.status] || []
+
+  return (
+    <div className="dashboard-card" style={{ padding: 14 }}>
+      <div className="flex justify-between items-center mb-sm">
+        <div>
+          <span style={{ fontWeight: 700, fontSize: '.9rem' }}>#{order.id.slice(0, 8)}</span>
+          {order.table_number && <span className="badge badge-primary ml-sm">Mesa {order.table_number}</span>}
+          {order.delivery_type === 'delivery' && <span className="badge badge-info ml-sm">Entrega</span>}
+        </div>
+        <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: '.75rem', fontWeight: 600, background: statusColors[order.status] || 'var(--text-light)', color: '#fff' }}>
+          {statusLabels[order.status] || order.status}
+        </span>
+      </div>
+      <p className="text-sm"><strong>{order.customer_name}</strong> • {order.customer_phone}</p>
+      {(order.items && typeof order.items === 'string' ? JSON.parse(order.items) : order.items || []).map((item: any, i: number) => (
+        <p key={i} className="text-xs text-muted" style={{ padding: '1px 0' }}>{item.quantity}x {item.productName}</p>
+      ))}
+      <div className="flex justify-between mt-sm">
+        <span className="text-xs text-muted">{order.payment_method} • R$ {order.total.toFixed(2)}</span>
+        <div className="flex gap-xs">
+          <button className="btn btn-xs btn-ghost" style={{ padding: '2px 6px', fontSize: '.7rem' }}
+            onClick={() => window.open(`/api/orders/${order.id}/receipt`, '_blank')}>
+            🖨️
+          </button>
+          <span className="text-xs text-muted">{new Date(order.created_at).toLocaleString('pt-BR')}</span>
+        </div>
+      </div>
+      {actions.length > 0 && (
+        <div className="flex gap-xs mt-sm" style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          {actions.map(a => (
+            <button key={a.status}
+              className={`btn btn-xs ${a.status === 'cancelled' ? 'btn-outline' : 'btn-primary'} flex-1`}
+              style={{ fontSize: '.7rem', padding: '6px 8px' }}
+              onClick={() => statusMut.mutate({ id: order.id, status: a.status })}
+              disabled={statusMut.isPending}>
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── All existing panels follow ─── */
+function TablesPanel({ tables, createTableMut, deleteTableMut, newTableNum, setNewTableNum }: any) {
+  return (
+    <div className="panel-fadeIn">
+      <div className="flex gap-sm mb-md">
+        <input className="input" type="number" placeholder="Número da mesa" style={{ width: 140 }} value={newTableNum} onChange={e => setNewTableNum(e.target.value)} />
+        <button className="btn btn-primary btn-sm" onClick={() => newTableNum && createTableMut.mutate(Number(newTableNum))} disabled={createTableMut.isPending}>Adicionar Mesa</button>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {tables?.map((t: any) => (
+          <div key={t.id} className="dashboard-card" style={{ padding: 14, minWidth: 120, textAlign: 'center' }}>
+            <p style={{ fontSize: '1.2rem', fontWeight: 700 }}>🪑 {t.number}</p>
+            <p className="text-sm text-muted">{t.is_occupied ? '🟡 Ocupada' : '🟢 Livre'}</p>
+            <button className="btn btn-sm btn-outline mt-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteTableMut.mutate(t.id)}>Excluir</button>
+          </div>
+        ))}
+        {(!tables || tables.length === 0) && <p className="text-muted text-sm">Nenhuma mesa cadastrada</p>}
+      </div>
+    </div>
+  )
+}
+
+function CouponsPanel({ coupons, deleteCouponMut }: any) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState({ code: '', title: '', description: '', discountType: 'percentage', discountValue: 0, minOrderValue: 0, maxUses: 0 })
+  const createMut = useMutation({
+    mutationFn: createCoupon,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['coupons'] }); setForm({ code: '', title: '', description: '', discountType: 'percentage', discountValue: 0, minOrderValue: 0, maxUses: 0 }) }
+  })
+
+  return (
+    <div className="panel-fadeIn">
+      <div className="dashboard-card mb-md">
+        <h4 className="font-semibold mb-sm">🏷️ Novo Cupom</h4>
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input style={inputStyle} placeholder="Código *" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} required />
+          <input style={inputStyle} placeholder="Título *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
+          <input style={inputStyle} placeholder="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <select style={inputStyle} value={form.discountType} onChange={e => setForm(f => ({ ...f, discountType: e.target.value }))}>
+            <option value="percentage">%</option><option value="fixed">R$</option>
+          </select>
+          <input style={{ ...inputStyle, width: 80 }} type="number" placeholder="Valor" value={form.discountValue || ''} onChange={e => setForm(f => ({ ...f, discountValue: Number(e.target.value) }))} />
+          <input style={{ ...inputStyle, width: 80 }} type="number" placeholder="Mínimo" value={form.minOrderValue || ''} onChange={e => setForm(f => ({ ...f, minOrderValue: Number(e.target.value) }))} />
+          <input style={{ ...inputStyle, width: 80 }} type="number" placeholder="Usos máx" value={form.maxUses || ''} onChange={e => setForm(f => ({ ...f, maxUses: Number(e.target.value) }))} />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Criar</button>
+        </form>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {coupons?.map((c: any) => (
+          <div key={c.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
+            <div>
+              <span className="font-semibold">{c.code}</span> - {c.title}
+              <span className="text-sm text-muted ml-sm">{c.discount_type === 'percentage' ? `${c.discount_value}%` : `R$ ${c.discount_value}`} • {c.used_count || 0}/{c.max_uses || '∞'} usos</span>
+            </div>
+            <button className="btn btn-sm btn-outline" style={{ color: 'var(--danger)' }} onClick={() => deleteCouponMut.mutate(c.id)}>🗑️</button>
+          </div>
+        ))}
+        {(!coupons || coupons.length === 0) && <p className="text-muted text-sm">Nenhum cupom</p>}
+      </div>
+    </div>
+  )
+}
+
+function LoyaltyPanel({ rewards }: any) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState({ name: '', pointsRequired: 0, description: '' })
+  const createMut = useMutation({
+    mutationFn: createLoyaltyReward,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rewards'] }); setForm({ name: '', pointsRequired: 0, description: '' }) }
+  })
+  const deleteMut = useMutation({ mutationFn: deleteLoyaltyReward, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rewards'] }) })
+
+  return (
+    <div className="panel-fadeIn">
+      <div className="dashboard-card mb-md">
+        <h4 className="font-semibold mb-sm">⭐ Nova Recompensa</h4>
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input style={inputStyle} placeholder="Nome *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+          <input style={{ ...inputStyle, width: 120 }} type="number" placeholder="Pontos" value={form.pointsRequired || ''} onChange={e => setForm(f => ({ ...f, pointsRequired: Number(e.target.value) }))} required />
+          <input style={inputStyle} placeholder="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <button type="submit" className="btn btn-primary btn-sm">Criar</button>
+        </form>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rewards?.map((r: any) => (
+          <div key={r.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
+            <div><span className="font-semibold">{r.name}</span> <span className="text-sm text-muted">⭐ {r.points_required} pts • {r.description}</span></div>
+            <button className="btn btn-sm btn-outline" style={{ color: 'var(--danger)' }} onClick={() => deleteMut.mutate(r.id)}>🗑️</button>
+          </div>
+        ))}
+        {(!rewards || rewards.length === 0) && <p className="text-muted text-sm">Nenhuma recompensa</p>}
+      </div>
+    </div>
+  )
+}
+
+function CampaignsPanel({ campaigns }: any) {
+  return (
+    <div className="panel-fadeIn">
+      <p className="text-sm text-muted mb-md">📢 Campanhas de marketing automatizadas</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {campaigns?.map((c: any) => (
+          <div key={c.id} className="dashboard-card" style={{ padding: 14 }}>
+            <p className="font-semibold">{c.name} <span className={`badge ${c.status === 'active' ? 'badge-success' : 'badge-warning'}`}>{c.status}</span></p>
+            <p className="text-sm text-muted">{c.message?.slice(0, 100)}{c.message?.length > 100 ? '...' : ''}</p>
+            <p className="text-xs text-muted">Enviada: {c.sent_count || 0} • Criada: {new Date(c.created_at).toLocaleDateString('pt-BR')}</p>
+          </div>
+        ))}
+        {(!campaigns || campaigns.length === 0) && <p className="text-muted text-sm">Nenhuma campanha</p>}
+      </div>
+    </div>
+  )
+}
+
+function AbandonedPanel({ carts }: any) {
+  return (
+    <div className="panel-fadeIn">
+      <p className="text-sm text-muted mb-md">🛒 Carrinhos abandonados que podem ser recuperados</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {carts?.map((c: any) => (
+          <div key={c.id} className="dashboard-card" style={{ padding: 14 }}>
+            <p className="font-semibold">{c.customer_name || 'Anônimo'} <span className="text-sm text-muted">• {c.customer_phone || 'sem telefone'}</span></p>
+            <p className="text-xs text-muted">{c.items ? JSON.parse(c.items).length : 0} itens • R$ {c.total ? Number(c.total).toFixed(2) : '0,00'} • {new Date(c.created_at).toLocaleString('pt-BR')}</p>
+          </div>
+        ))}
+        {(!carts || carts.length === 0) && <p className="text-muted text-sm">Nenhum carrinho abandonado</p>}
+      </div>
+    </div>
+  )
+}
+
+function CashbackPanel({ settings }: any) {
+  const queryClient = useQueryClient()
+  const [pct, setPct] = useState(settings?.percentage || 5)
+  const saveMut = useMutation({
+    mutationFn: (v: number) => setCashbackSettings(v),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cashback'] })
+  })
+
+  return (
+    <div className="panel-fadeIn">
+      <div className="dashboard-card" style={{ maxWidth: 400 }}>
+        <h4 className="font-semibold mb-sm">💵 Configuração de Cashback</h4>
+        <p className="text-sm text-muted mb-md">Porcentagem de cashback concedida ao cliente quando o pedido é entregue.</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="number" className="input" style={{ width: 100 }} value={pct} onChange={e => setPct(Number(e.target.value))} />
+          <span>%</span>
+          <button className="btn btn-primary btn-sm" onClick={() => saveMut.mutate(pct)} disabled={saveMut.isPending}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CRMPanel({ segmentation }: any) {
+  return (
+    <div className="panel-fadeIn">
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <Link to="/dashboard/customers" className="btn btn-primary">👥 Ver Todos os Clientes</Link>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        {segmentation && [
+          { label: '🔄 Ativos (últimos 30 dias)', value: (segmentation as any).active30days || 0 },
+          { label: '📊 Total de Clientes', value: (segmentation as any).total || 0 },
+          { label: '💎 Alta fidelidade', value: (segmentation as any).highValue || 0 },
+          { label: '⚠️ Risco de perda', value: (segmentation as any).atRisk || 0 },
+        ].map(s => (
+          <div key={s.label} className="dashboard-card" style={{ textAlign: 'center', padding: 20 }}>
+            <p className="text-sm text-muted">{s.label}</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: 4 }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function IntegrationsPanel({ integrations }: any) {
+  const queryClient = useQueryClient()
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const saveMut = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: any }) => setIntegration(key, value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrations'] })
+  })
+  const [localValues, setLocalValues] = useState<Record<string, string>>({})
+
+  const handleSave = (integration: any) => {
+    for (const field of integration.fields) {
+      const val = localValues[field.key]
+      if (val !== undefined) {
+        saveMut.mutate({ key: field.key, value: val })
+      }
+    }
+  }
+
+  return (
+    <div className="panel-fadeIn">
+      <p className="text-sm text-muted mb-md">🔌 Conecte seu sistema com outras plataformas</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
+        {integrations?.map((int: any) => {
+          const isExpanded = expanded === int.key
+          return (
+            <div key={int.key} className="dashboard-card" style={{ padding: 16 }}>
+              <div className="flex justify-between items-center mb-sm" style={{ cursor: 'pointer' }} onClick={() => setExpanded(isExpanded ? null : int.key)}>
+                <div>
+                  <span className="font-semibold">{int.icon} {int.label}</span>
+                  {int.enabled && <span className="badge badge-success ml-sm">✓ Conectado</span>}
+                </div>
+                <span className="text-muted">{isExpanded ? '▲' : '▼'}</span>
+              </div>
+              <p className="text-xs text-muted mb-sm">{int.desc}</p>
+              {isExpanded && (
+                <div>
+                  {int.fields.map((field: any) => (
+                    <div key={field.key} className="mb-xs">
+                      <label className="text-xs text-muted">{field.label}</label>
+                      <input className="input"
+                        type={field.type || 'text'}
+                        placeholder={field.placeholder}
+                        defaultValue={field.value || ''}
+                        onChange={e => setLocalValues(v => ({ ...v, [field.key]: e.target.value }))}
+                        style={{ fontSize: '.82rem', padding: '6px 8px' }}
+                      />
+                    </div>
+                  ))}
+                  <button className="btn btn-primary btn-sm btn-block mt-sm"
+                    onClick={() => handleSave(int)}
+                    disabled={saveMut.isPending}>
+                    {int.enabled ? 'Atualizar' : 'Conectar'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function PDVPanel() {
+  const queryClient = useQueryClient()
+  const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts })
+  const [cart, setCart] = useState<{ id: string; name: string; price: number; qty: number }[]>([])
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const createMut = useMutation({
+    mutationFn: createOrder,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['orders'] }); setCart([]); setName(''); setPhone('') }
+  })
+
+  const addToCart = (p: any) => {
+    setCart(c => { const ex = c.find(i => i.id === p.id); return ex ? c.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i) : [...c, { id: p.id, name: p.name, price: p.pricePromotional || p.price, qty: 1 }] })
+  }
+
+  return (
+    <div className="panel-fadeIn" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16 }}>
+      <div>
+        <h4 className="font-semibold mb-sm">🍔 Produtos</h4>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {products?.map((p: any) => (
+            <button key={p.id} className="btn btn-outline btn-sm" onClick={() => addToCart(p)}>
+              {p.name} • R$ {(p.pricePromotional || p.price).toFixed(2)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="dashboard-card" style={{ padding: 14 }}>
+        <h4 className="font-semibold mb-sm">🛒 Carrinho</h4>
+        {cart.map(i => <p key={i.id} className="text-sm">{i.qty}x {i.name} = R$ {(i.price * i.qty).toFixed(2)}</p>)}
+        <p className="font-bold mt-sm">Total: R$ {cart.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2)}</p>
+        <div className="divider" />
+        <input className="input mb-xs" placeholder="Cliente" value={name} onChange={e => setName(e.target.value)} />
+        <input className="input mb-sm" placeholder="Telefone" value={phone} onChange={e => setPhone(e.target.value)} />
+        <button className="btn btn-primary btn-block btn-sm" disabled={createMut.isPending || cart.length === 0}
+          onClick={() => createMut.mutate({ customerName: name, customerPhone: phone || '00000000000', items: cart.map(i => ({ productId: i.id, productName: i.name, quantity: i.qty, unitPrice: i.price, totalPrice: i.price * i.qty })), paymentMethod: 'cash', deliveryType: 'pickup' })}>
+          Finalizar Pedido
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CategoriasPanel() {
+  const queryClient = useQueryClient()
+  const { data: cats, isLoading } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ name: '', icon: '📁' })
+  const [editing, setEditing] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', icon: '📁', isActive: true })
+  const [dragId, setDragId] = useState<string | null>(null)
+  const createMut = useMutation({
+    mutationFn: createCategory,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setShowForm(false); setForm({ name: '', icon: '📁' }) }
+  })
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateCategory(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setEditing(null) }
+  })
+  const deleteMut = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] })
+  })
+  const sorted = [...(cats || [])].sort((a: any, b: any) => a.order - b.order)
+
+  const handleDragStart = (id: string) => { setDragId(id) }
+
+  const handleDrop = (targetId: string) => {
+    if (!dragId || dragId === targetId) { setDragId(null); return }
+    const ids = sorted.map(c => c.id)
+    const fromIdx = ids.indexOf(dragId)
+    const toIdx = ids.indexOf(targetId)
+    if (fromIdx === -1 || toIdx === -1) { setDragId(null); return }
+    ids.splice(fromIdx, 1)
+    ids.splice(toIdx, 0, dragId)
+    ids.forEach((id, i) => { if (id !== sorted[i]?.id) updateMut.mutate({ id, data: { order: i + 1 } }) })
+    setDragId(null)
+  }
+
+  return (
+    <div className="panel-fadeIn">
+      <div className="flex justify-between items-center mb-md">
+        <p className="text-sm text-muted">📂 Arraste as categorias para reordenar</p>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>
+          {showForm ? 'Fechar' : '+ Nova Categoria'}
+        </button>
+      </div>
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input className="input" style={inputStyle} placeholder="Nome *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+          <input className="input" style={{ ...inputStyle, width: 60 }} placeholder="Ícone" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Adicionar</button>
+        </form>
+      )}
+      {isLoading ? <p>Carregando...</p> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sorted.map((c: any) => (
+            <div key={c.id}
+              draggable
+              onDragStart={() => handleDragStart(c.id)}
+              onDragOver={e => e.preventDefault()}
+              onDrop={() => handleDrop(c.id)}
+              className="dashboard-card"
+              style={{ padding: 14, cursor: 'grab', opacity: dragId === c.id ? .5 : 1, borderLeft: dragId === c.id ? '3px solid var(--primary)' : '3px solid transparent' }}
+            >
+              {editing === c.id ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                  <input className="input" style={inputStyle} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                  <input className="input" style={{ ...inputStyle, width: 60 }} value={editForm.icon} onChange={e => setEditForm(f => ({ ...f, icon: e.target.value }))} />
+                  <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isActive} onChange={e => setEditForm(f => ({ ...f, isActive: e.target.checked }))} /> Ativa</label>
+                  <button className="btn btn-primary btn-sm" onClick={() => updateMut.mutate({ id: c.id, data: { name: editForm.name, icon: editForm.icon, isActive: editForm.isActive } })}>Salvar</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancelar</button>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-sm">
+                    <span style={{ fontSize: '1.2rem', opacity: .4, cursor: 'grab' }}>⠿</span>
+                    <span style={{ fontSize: '1.4rem' }}>{c.icon}</span>
+                    <div>
+                      <span className="font-semibold">{c.name}</span>
+                      {!c.isActive && <span className="badge badge-danger ml-sm">Inativa</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-outline btn-sm" onClick={() => { setEditing(c.id); setEditForm({ name: c.name, icon: c.icon, isActive: c.isActive }) }}>✏️</button>
+                    <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => { if (confirm('Excluir categoria?')) deleteMut.mutate(c.id) }}>🗑️</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProdutosPanel() {
+  const queryClient = useQueryClient()
+  const { data: products, isLoading } = useQuery({ queryKey: ['allProducts'], queryFn: getAllProducts })
+  const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
+  const [showNew, setShowNew] = useState(false)
+  const [newForm, setNewForm] = useState({ name: '', price: '', description: '', pricePromotional: '', image: '', categoryId: '', ingredients: '', isHighlighted: false })
+  const [editing, setEditing] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', price: 0, pricePromotional: '' as string | number, image: '', ingredients: '', isHighlighted: false, isAvailable: true })
+
+  const createMut = useMutation({
+    mutationFn: createProduct,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['allProducts'] }); setShowNew(false); setNewForm({ name: '', price: '', description: '', pricePromotional: '', image: '', categoryId: '', ingredients: '', isHighlighted: false }) }
+  })
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateProduct(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['allProducts'] }); setEditing(null) }
+  })
+
+  const startEdit = (p: any) => {
+    setEditing(p.id)
+    setEditForm({ name: p.name, price: p.price, pricePromotional: p.pricePromotional || '', image: p.image, ingredients: (p.ingredients || []).join(', '), isHighlighted: p.isHighlighted, isAvailable: p.isAvailable })
+  }
+
+  return (
+    <div className="panel-fadeIn">
+      <div className="flex justify-between items-center mb-md">
+        <p className="text-sm text-muted">🍔 Gerencie os produtos do cardápio</p>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(!showNew)}>
+          {showNew ? 'Fechar' : '+ Novo Produto'}
+        </button>
+      </div>
+
+      {showNew && (
+        <form onSubmit={e => { e.preventDefault(); if (newForm.name && newForm.price) createMut.mutate({ name: newForm.name, price: Number(newForm.price), description: newForm.description, pricePromotional: newForm.pricePromotional ? Number(newForm.pricePromotional) : undefined, image: newForm.image, categoryId: newForm.categoryId || undefined, isHighlighted: newForm.isHighlighted, ingredients: newForm.ingredients.split(',').map((s: string) => s.trim()) }) }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, padding: 16, background: 'var(--bg)', borderRadius: 10 }}>
+          <input className="input" style={inputStyle} placeholder="Nome *" value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))} required />
+          <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço *" value={newForm.price} onChange={e => setNewForm(f => ({ ...f, price: e.target.value }))} required />
+          <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço Promo" value={newForm.pricePromotional} onChange={e => setNewForm(f => ({ ...f, pricePromotional: e.target.value }))} />
+          <input className="input" style={inputStyle} placeholder="Descrição" value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} />
+          <input className="input" style={inputStyle} placeholder="URL imagem" value={newForm.image} onChange={e => setNewForm(f => ({ ...f, image: e.target.value }))} />
+          <input className="input" style={inputStyle} placeholder="Ingredientes (vírgula)" value={newForm.ingredients} onChange={e => setNewForm(f => ({ ...f, ingredients: e.target.value }))} />
+          <select className="input" style={inputStyle} value={newForm.categoryId} onChange={e => setNewForm(f => ({ ...f, categoryId: e.target.value }))}>
+            <option value="">Sem categoria</option>
+            {categories?.map((c: any) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+          </select>
+          <label style={{ fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={newForm.isHighlighted} onChange={e => setNewForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Criar Produto</button>
+        </form>
+      )}
+
+      {isLoading ? <p>Carregando...</p> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {products?.map((p: any) => (
+            <div key={p.id} className="dashboard-card" style={{ padding: 14 }}>
+              {editing === p.id ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                  <input style={inputStyle} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                  <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: Number(e.target.value) }))} />
+                  <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" placeholder="Promo" value={editForm.pricePromotional} onChange={e => setEditForm(f => ({ ...f, pricePromotional: e.target.value }))} />
+                  <input style={inputStyle} value={editForm.image} onChange={e => setEditForm(f => ({ ...f, image: e.target.value }))} placeholder="URL imagem" />
+                  <input style={inputStyle} value={editForm.ingredients} onChange={e => setEditForm(f => ({ ...f, ingredients: e.target.value }))} placeholder="Ingredientes (vírgula)" />
+                  <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isHighlighted} onChange={e => setEditForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
+                  <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isAvailable} onChange={e => setEditForm(f => ({ ...f, isAvailable: e.target.checked }))} /> Disponível</label>
+                  <button className="btn btn-primary btn-sm" onClick={() => updateMut.mutate({ id: p.id, data: { ...editForm, ingredients: editForm.ingredients.split(',').map((s: string) => s.trim()), pricePromotional: editForm.pricePromotional || null } })}>Salvar</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancelar</button>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-sm">
+                    {p.image && <img src={p.image} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover' }} />}
+                    <div>
+                      <span className="font-semibold">{p.name}</span>
+                      <span className="text-sm text-muted ml-sm">R$ {p.price.toFixed(2)}</span>
+                      {p.pricePromotional && <span className="text-sm text-success ml-sm">R$ {p.pricePromotional.toFixed(2)}</span>}
+                      {p.isHighlighted && <span className="badge badge-primary ml-sm">Destaque</span>}
+                      {!p.isAvailable && <span className="badge badge-danger ml-sm">Indisponível</span>}
+                    </div>
+                  </div>
+                  <button className="btn btn-outline btn-sm" onClick={() => startEdit(p)}>✏️ Editar</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CaixaPanel() {
+  const queryClient = useQueryClient()
+  const { data } = useQuery({ queryKey: ['cashRegister'], queryFn: getCashRegister })
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ type: 'income', description: '', amount: '', paymentMethod: 'cash' })
+  const createMut = useMutation({
+    mutationFn: addCashEntry,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['cashRegister'] }); setShowForm(false); setForm({ type: 'income', description: '', amount: '', paymentMethod: 'cash' }) }
+  })
+
+  const entries = data?.entries || []
+  const total = entries.reduce((s: number, e: any) => s + (e.type === 'income' ? Number(e.amount) : -Number(e.amount)), 0)
+
+  return (
+    <div className="panel-fadeIn">
+      <div className="flex justify-between items-center mb-md">
+        <p className="font-semibold">💰 Saldo: <span style={{ color: total >= 0 ? 'var(--success)' : 'var(--danger)' }}>R$ {total.toFixed(2)}</span></p>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Nova Movimentação'}</button>
+      </div>
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate({ type: form.type, description: form.description, amount: Number(form.amount), paymentMethod: form.paymentMethod }) }}
+          style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <select style={inputStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+            <option value="income">Entrada</option><option value="expense">Saída</option>
+          </select>
+          <input style={inputStyle} placeholder="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} required />
+          <input style={{ ...inputStyle, width: 100 }} type="number" step=".01" placeholder="Valor" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required />
+          <select style={inputStyle} value={form.paymentMethod} onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}>
+            <option value="cash">Dinheiro</option><option value="pix">PIX</option><option value="credit">Crédito</option><option value="debit">Débito</option>
+          </select>
+          <button type="submit" className="btn btn-primary btn-sm">Adicionar</button>
+        </form>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {entries.map((e: any) => (
+          <div key={e.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', padding: 10, fontSize: '.85rem' }}>
+            <span>{e.description} <span className="text-muted text-xs">• {e.payment_method || e.paymentMethod} • {new Date(e.created_at).toLocaleString('pt-BR')}</span></span>
+            <span style={{ color: e.type === 'income' ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+              {e.type === 'income' ? '+' : '-'} R$ {Number(e.amount).toFixed(2)}
+            </span>
+          </div>
+        ))}
+        {entries.length === 0 && <p className="text-muted text-sm">Nenhuma movimentação</p>}
+      </div>
+    </div>
+  )
+}
+
+function EstoquePanel() {
+  const queryClient = useQueryClient()
+  const { data } = useQuery({ queryKey: ['inventory'], queryFn: getInventory })
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ productName: '', quantity: 0, unit: 'un', minQuantity: 0 })
+  const [adjForm, setAdjForm] = useState({ productId: '', quantity: 0, type: 'add', reason: '' })
+  const items = data?.items || data || []
+
+  const createMut = useMutation({
+    mutationFn: upsertInventoryProduct,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['inventory'] }); setShowForm(false); setForm({ productName: '', quantity: 0, unit: 'un', minQuantity: 0 }) }
+  })
+  const adjustMut = useMutation({
+    mutationFn: (args: { productId: string; quantity: number; type: string; reason: string }) => adjustInventory(args.productId, args.type as 'in' | 'out', args.quantity, args.reason),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['inventory'] }); setAdjForm({ productId: '', quantity: 0, type: 'add', reason: '' }) }
+  })
+
+  return (
+    <div className="panel-fadeIn">
+      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Novo Produto'}</button>
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input style={inputStyle} placeholder="Nome" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} required />
+          <input style={{ ...inputStyle, width: 80 }} type="number" placeholder="Qtd" value={form.quantity || ''} onChange={e => setForm(f => ({ ...f, quantity: Number(e.target.value) }))} />
+          <select style={inputStyle} value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
+            <option value="un">un</option><option value="kg">kg</option><option value="l">L</option><option value="pac">pac</option>
+          </select>
+          <input style={{ ...inputStyle, width: 80 }} type="number" placeholder="Mín" value={form.minQuantity || ''} onChange={e => setForm(f => ({ ...f, minQuantity: Number(e.target.value) }))} />
+          <button type="submit" className="btn btn-primary btn-sm">Adicionar</button>
+        </form>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {(Array.isArray(items) ? items : []).map((p: any) => (
+          <div key={p.id} className="dashboard-card" style={{ padding: 14 }}>
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="font-semibold">{p.product_name}</span>
+                <span className="text-sm text-muted ml-sm">{p.quantity} {p.unit}</span>
+                {p.quantity <= (p.min_quantity || Infinity) && <span className="badge badge-danger ml-sm">Estoque baixo</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input style={{ ...inputStyle, width: 70 }} type="number" placeholder="Qtd" value={adjForm.productId === p.id ? adjForm.quantity : ''} onChange={e => setAdjForm({ productId: p.id, quantity: Number(e.target.value), type: adjForm.type, reason: adjForm.reason })} />
+                <select style={inputStyle} value={adjForm.productId === p.id ? adjForm.type : 'add'} onChange={e => setAdjForm(f => ({ ...f, type: e.target.value }))}>
+                  <option value="add">+</option><option value="remove">-</option>
+                </select>
+                <button className="btn btn-outline btn-sm" onClick={() => adjForm.quantity > 0 && adjustMut.mutate({ productId: p.id, quantity: adjForm.quantity, type: adjForm.type, reason: adjForm.reason })}>Ajustar</button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {(!items || items.length === 0) && <p className="text-muted text-sm">Nenhum produto no estoque</p>}
+      </div>
+    </div>
+  )
+}
+
+function NotasPanel() {
+  const queryClient = useQueryClient()
+  const { data: invoices } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
+  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: getOrders })
+  const [orderId, setOrderId] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const issueMut = useMutation({
+    mutationFn: issueInvoice,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['invoices'] }); setOrderId(''); setShowForm(false) }
+  })
+
+  const deliveryOrders = (orders || []).filter((o: any) => o.delivery_type !== 'mesa')
+
+  return (
+    <div className="panel-fadeIn">
+      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Nova NF-e'}</button>
+      {showForm && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <select style={{ flex: 1, ...inputStyle }} value={orderId} onChange={e => setOrderId(e.target.value)}>
+            <option value="">Selecione um pedido...</option>
+            {deliveryOrders.map((o: any) => (
+              <option key={o.id} value={o.id}>#{o.id.slice(0, 8)} - {o.customer_name} - R$ {o.total.toFixed(2)}</option>
+            ))}
+          </select>
+          <button className="btn btn-primary btn-sm" onClick={() => orderId && issueMut.mutate(orderId)} disabled={!orderId || issueMut.isPending}>Emitir NF-e</button>
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {(invoices || []).map((inv: any) => (
+          <div key={inv.id} className="dashboard-card" style={{ padding: 14 }}>
+            <div className="flex justify-between">
+              <div>
+                <span className="font-semibold">NF-e #{inv.number || inv.id.slice(0, 8)}</span>
+                <span className={`badge ml-sm ${inv.status === 'issued' ? 'badge-success' : 'badge-warning'}`}>{inv.status}</span>
+              </div>
+              <span className="font-bold">R$ {Number(inv.total).toFixed(2)}</span>
+            </div>
+            <p className="text-xs text-muted">{new Date(inv.created_at).toLocaleString('pt-BR')}</p>
+          </div>
+        ))}
+        {(!invoices || invoices.length === 0) && <p className="text-muted text-sm">Nenhuma nota fiscal</p>}
+      </div>
+    </div>
+  )
+}
+
+function RotasPanel() {
+  const queryClient = useQueryClient()
+  const { data: routes } = useQuery({ queryKey: ['routes'], queryFn: getDeliveryRoutes })
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ address: '', customerName: '', customerPhone: '', driver: '' })
+  const createMut = useMutation({
+    mutationFn: createDeliveryRoute,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['routes'] }); setShowForm(false); setForm({ address: '', customerName: '', customerPhone: '', driver: '' }) }
+  })
+  const updateMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateDeliveryStatus(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['routes'] })
+  })
+
+  return (
+    <div className="panel-fadeIn">
+      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Nova Rota'}</button>
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input style={inputStyle} placeholder="Endereço" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} required />
+          <input style={inputStyle} placeholder="Cliente" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} />
+          <input style={inputStyle} placeholder="WhatsApp" value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))} />
+          <input style={inputStyle} placeholder="Entregador" value={form.driver} onChange={e => setForm(f => ({ ...f, driver: e.target.value }))} />
+          <button type="submit" className="btn btn-primary btn-sm">Adicionar</button>
+        </form>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {routes?.map((r: any) => (
+          <div key={r.id} className="dashboard-card" style={{ padding: 14 }}>
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-semibold">{r.address}</p>
+                <p className="text-xs text-muted">{r.customer_name} • {r.customer_phone} • 🚚 {r.driver || 'sem entregador'}</p>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span className={`badge ${r.status === 'pending' ? 'badge-warning' : r.status === 'in_progress' ? 'badge-info' : 'badge-success'}`}>{r.status}</span>
+                {r.status !== 'delivered' && (
+                  <button className="btn btn-outline btn-sm" onClick={() => updateMut.mutate({ id: r.id, status: r.status === 'pending' ? 'in_progress' : 'delivered' })}>
+                    {r.status === 'pending' ? 'Iniciar' : 'Entregue'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        {(!routes || routes.length === 0) && <p className="text-muted text-sm">Nenhuma rota cadastrada</p>}
+      </div>
+    </div>
+  )
+}
+
+function ImpressorasPanel() {
+  const queryClient = useQueryClient()
+  const { data: printers } = useQuery({ queryKey: ['printers'], queryFn: getPrinters })
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ name: '', sector: 'cozinha' })
+  const createMut = useMutation({
+    mutationFn: createPrinter,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['printers'] }); setShowForm(false); setForm({ name: '', sector: 'cozinha' }) }
+  })
+  const deleteMut = useMutation({ mutationFn: deletePrinter, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['printers'] }) })
+
+  return (
+    <div className="panel-fadeIn">
+      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Nova Impressora'}</button>
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+          <input style={inputStyle} placeholder="Nome *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+          <select style={inputStyle} value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}>
+            <option value="cozinha">Cozinha</option><option value="balcao">Balcão</option><option value="caixa">Caixa</option>
+          </select>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Adicionar</button>
+        </form>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {printers?.map((p: any) => (
+          <div key={p.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
+            <div>
+              <span className="font-semibold">🖨️ {p.name}</span>
+              <span className="text-sm text-muted ml-sm">{p.sector} • {p.isActive ? 'Ativa' : 'Inativa'}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-outline btn-sm" onClick={() => fetch(`/api/printers/test/${p.id}`, { method: 'POST' }).then(r => r.text()).then(msg => alert(msg || 'Impressão de teste enviada!'))}>🖨️ Testar</button>
+              <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteMut.mutate(p.id)}>🗑️</button>
+            </div>
+          </div>
+        ))}
+        {(!printers || printers.length === 0) && <p className="text-muted text-sm">Nenhuma impressora cadastrada</p>}
+      </div>
+    </div>
+  )
+}
+
+function FiadoPanel() {
+  const queryClient = useQueryClient()
+  const { data } = useQuery({ queryKey: ['fiado'], queryFn: getFiado })
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ customerName: '', customerPhone: '', amount: '', dueDate: '', notes: '' })
+  const createMut = useMutation({
+    mutationFn: createFiado,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['fiado'] }); setShowForm(false); setForm({ customerName: '', customerPhone: '', amount: '', dueDate: '', notes: '' }) }
+  })
+  const payMut = useMutation({ mutationFn: (id: string) => payFiado(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fiado'] }) })
+  const debts = data?.debts || []
+  const totalFiado = debts.reduce((s: number, f: any) => s + (f.status === 'pending' ? Number(f.amount) - Number(f.paid_amount || 0) : 0), 0)
+
+  return (
+    <div className="panel-fadeIn">
+      <div className="flex justify-between items-center mb-md">
+        <p className="font-semibold">📒 Total em aberto: <span style={{ color: 'var(--danger)' }}>R$ {totalFiado.toFixed(2)}</span></p>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Novo Fiado'}</button>
+      </div>
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate({ customerName: form.customerName, customerPhone: form.customerPhone, amount: Number(form.amount), dueDate: form.dueDate || undefined, notes: form.notes }) }}
+          style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input style={inputStyle} placeholder="Nome do cliente *" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} required />
+          <input style={{ ...inputStyle, width: 120 }} type="number" placeholder="Valor" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required />
+          <input style={inputStyle} placeholder="WhatsApp" value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))} />
+          <input style={inputStyle} type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+          <button type="submit" className="btn btn-primary btn-sm">Criar</button>
+        </form>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {debts.map((f: any) => (
+          <div key={f.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
+            <div>
+              <span className="font-semibold">{f.customer_name}</span>
+              <span className="text-sm text-muted ml-sm">R$ {Number(f.amount).toFixed(2)}</span>
+              <span className={`badge ml-sm ${f.status === 'pending' ? 'badge-danger' : 'badge-success'}`}>{f.status === 'paid' ? 'Pago' : 'Pendente'}</span>
+              {f.due_date && <span className="text-xs text-muted ml-sm">Vence: {new Date(f.due_date).toLocaleDateString('pt-BR')}</span>}
+            </div>
+            {f.status === 'pending' && (
+              <button className="btn btn-success btn-sm" onClick={() => payMut.mutate(f.id)}>💰 Receber</button>
+            )}
+          </div>
+        ))}
+        {debts.length === 0 && <p className="text-muted text-sm">Nenhum fiado</p>}
+      </div>
+    </div>
+  )
+}
+
+function BlogPanel({ posts }: any) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState({ title: '', content: '', slug: '', published: false })
+  const [showForm, setShowForm] = useState(false)
+  const createMut = useMutation({
+    mutationFn: createBlogPost,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['blogPosts'] }); setShowForm(false); setForm({ title: '', content: '', slug: '', published: false }) }
+  })
+  const deleteMut = useMutation({ mutationFn: deleteBlogPost, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['blogPosts'] }) })
+
+  return (
+    <div className="panel-fadeIn">
+      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Novo Post'}</button>
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          <input style={inputStyle} placeholder="Título *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
+          <input style={inputStyle} placeholder="Slug (url)" value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} />
+          <textarea style={{ ...inputStyle, minHeight: 100 }} placeholder="Conteúdo do post..." value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+          <label style={{ fontSize: '.85rem' }}><input type="checkbox" checked={form.published} onChange={e => setForm(f => ({ ...f, published: e.target.checked }))} /> Publicar</label>
+          <button type="submit" className="btn btn-primary btn-sm">Salvar</button>
+        </form>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {posts?.map((p: any) => (
+          <div key={p.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
+            <div>
+              <span className="font-semibold">{p.title}</span>
+              <span className={`badge ml-sm ${p.is_published ? 'badge-success' : 'badge-warning'}`}>{p.is_published ? 'Publicado' : 'Rascunho'}</span>
+            </div>
+            <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteMut.mutate(p.id)}>🗑️</button>
+          </div>
+        ))}
+        {(!posts || posts.length === 0) && <p className="text-muted text-sm">Nenhum post</p>}
+      </div>
+    </div>
+  )
+}
+
+function LeadsPanel({ leads }: any) {
+  return (
+    <div className="panel-fadeIn">
+      <p className="text-sm text-muted mb-md">📋 Leads capturados no formulário de contato</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {leads?.map((l: any) => (
+          <div key={l.id} className="dashboard-card" style={{ padding: 14 }}>
+            <p className="font-semibold">{l.name}</p>
+            <p className="text-xs text-muted">{l.email} • {l.phone} • {l.company} • {new Date(l.created_at).toLocaleString('pt-BR')}</p>
+            {l.notes && <p className="text-xs text-muted">{l.notes}</p>}
+          </div>
+        ))}
+        {(!leads || leads.length === 0) && <p className="text-muted text-sm">Nenhum lead</p>}
+      </div>
+    </div>
+  )
+}
+
+function PartnersPanel({ partners }: any) {
+  return (
+    <div className="panel-fadeIn">
+      <p className="text-sm text-muted mb-md">🤝 Parceiros cadastrados</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {partners?.map((p: any) => (
+          <div key={p.id} className="dashboard-card" style={{ padding: 14 }}>
+            <p className="font-semibold">{p.name}</p>
+            <p className="text-xs text-muted">{p.email} • {p.phone} • {p.company} • {new Date(p.created_at).toLocaleString('pt-BR')}</p>
+          </div>
+        ))}
+        {(!partners || partners.length === 0) && <p className="text-muted text-sm">Nenhum parceiro</p>}
+      </div>
+    </div>
+  )
+}
+
+function StoreSettingsPanel({ settings }: { settings: StoreSettings | undefined }) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState({
+    storeName: '', storeIcon: '', primaryColor: '#e74c3c', primaryDark: '#c0392b',
+    paymentPixKey: '', paymentPixName: '', paymentCardInfo: '', paymentCashInfo: '', footerText: '',
+    schedulingEnabled: false, whatsapp: '', logoUrl: '',
+    deliveryFee: 0, freeDeliveryFrom: 0,
+    openingHours: {} as Record<string, { open: string; close: string; closed: boolean }>,
+  })
+
+  const [saved, setSaved] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  const updateMut = useMutation({
+    mutationFn: updateStoreSettings,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['storeSettings'] }); setSaved(true); setTimeout(() => setSaved(false), 2000) }
+  })
+
+  React.useEffect(() => {
+    if (settings) setForm({
+      storeName: settings.storeName,
+      storeIcon: settings.storeIcon,
+      primaryColor: settings.primaryColor,
+      primaryDark: settings.primaryDark,
+      paymentPixKey: settings.paymentPixKey,
+      paymentPixName: settings.paymentPixName,
+      paymentCardInfo: settings.paymentCardInfo,
+      paymentCashInfo: settings.paymentCashInfo,
+      footerText: settings.footerText,
+      schedulingEnabled: settings.schedulingEnabled,
+      whatsapp: settings.whatsapp,
+      logoUrl: settings.logoUrl,
+      deliveryFee: (settings as any).deliveryFee || 0,
+      freeDeliveryFrom: (settings as any).freeDeliveryFrom || 0,
+      openingHours: settings.openingHours || {},
+    })
+  }, [settings])
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault()
+    updateMut.mutate(form)
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('logo', file)
+      const res = await fetch('/api/store/logo', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.logoUrl) setForm(f => ({ ...f, logoUrl: data.logoUrl }))
+    } catch { alert('Erro ao enviar logo') }
+    finally { setUploading(false) }
+  }
+
+  const days = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo']
+  const dayLabels: Record<string, string> = {
+    segunda: 'Segunda', terca: 'Terça', quarta: 'Quarta', quinta: 'Quinta',
+    sexta: 'Sexta', sabado: 'Sábado', domingo: 'Domingo',
+  }
+
+  const setHour = (day: string, field: 'open' | 'close' | 'closed', value: string | boolean) => {
+    setForm(f => ({
+      ...f,
+      openingHours: {
+        ...f.openingHours,
+        [day]: { ...f.openingHours[day] || { open: '08:00', close: '22:00', closed: false }, [field]: value },
+      }
+    }))
+  }
+
+  return (
+    <div className="dashboard-card panel-fadeIn">
+      <h3 style={{ marginBottom: 16 }}>⚙️ Configurações da Loja</h3>
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Nome da Loja</label>
+            <input style={inputStyle} value={form.storeName} onChange={e => setForm(f => ({ ...f, storeName: e.target.value }))} />
+          </div>
+          <div>
+            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Ícone (emoji)</label>
+            <input style={inputStyle} value={form.storeIcon} onChange={e => setForm(f => ({ ...f, storeIcon: e.target.value }))} maxLength={2} />
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Logo (imagem)</label>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {form.logoUrl && <img src={form.logoUrl} alt="logo" style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />}
+            <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
+              {uploading ? 'Enviando...' : '📤 Escolher Imagem'}
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
+            </label>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Cor Principal</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="color" style={{ width: 48, height: 40, padding: 0, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer' }}
+                value={form.primaryColor} onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))} />
+              <input style={{ flex: 1 }} value={form.primaryColor} onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Cor Secundária (hover)</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="color" style={{ width: 48, height: 40, padding: 0, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer' }}
+                value={form.primaryDark} onChange={e => setForm(f => ({ ...f, primaryDark: e.target.value }))} />
+              <input style={{ flex: 1 }} value={form.primaryDark} onChange={e => setForm(f => ({ ...f, primaryDark: e.target.value }))} />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
+          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>📞 Contato</h4>
+          <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>WhatsApp (com DDD)</label>
+          <input style={inputStyle} value={form.whatsapp} onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))} placeholder="(11) 99999-8888" />
+          <p className="text-xs text-muted mt-xs">Link do WhatsApp aparece no topo do site</p>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
+          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>⏰ Horários</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {days.map(day => {
+              const h = form.openingHours[day] || { open: '08:00', close: '22:00', closed: false }
+              return (
+                <div key={day} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <label style={{ width: 90, fontSize: '.85rem', fontWeight: 500 }}>{dayLabels[day]}</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
+                    <input type="checkbox" checked={h.closed} onChange={e => setHour(day, 'closed', e.target.checked)} /> Fechado
+                  </label>
+                  {!h.closed && (
+                    <>
+                      <input type="time" style={{ ...inputStyle, width: 100 }} value={h.open} onChange={e => setHour(day, 'open', e.target.value)} />
+                      <span style={{ fontSize: '.85rem' }}>às</span>
+                      <input type="time" style={{ ...inputStyle, width: 100 }} value={h.close} onChange={e => setHour(day, 'close', e.target.value)} />
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
+          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>📅 Agendamento</h4>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.9rem' }}>
+            <input type="checkbox" checked={form.schedulingEnabled} onChange={e => setForm(f => ({ ...f, schedulingEnabled: e.target.checked }))} />
+            Permitir agendamento de pedidos
+          </label>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
+          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>🚚 Entrega</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Taxa de entrega (R$)</label>
+              <input style={inputStyle} type="number" step="0.50" min="0" value={form.deliveryFee} onChange={e => setForm(f => ({ ...f, deliveryFee: Number(e.target.value) }))} placeholder="0" />
+            </div>
+            <div>
+              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Entrega grátis acima de (R$)</label>
+              <input style={inputStyle} type="number" step="1" min="0" value={form.freeDeliveryFrom} onChange={e => setForm(f => ({ ...f, freeDeliveryFrom: Number(e.target.value) }))} placeholder="0 = desabilitado" />
+            </div>
+          </div>
+          <p className="text-xs text-muted mt-xs">Se "Entrega grátis acima de" for 0, sempre cobra a taxa.</p>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
+          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>💳 Pagamento</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Chave PIX</label>
+              <input style={inputStyle} value={form.paymentPixKey} onChange={e => setForm(f => ({ ...f, paymentPixKey: e.target.value }))} placeholder="11.99999-8888" />
+            </div>
+            <div>
+              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Nome do PIX</label>
+              <input style={inputStyle} value={form.paymentPixName} onChange={e => setForm(f => ({ ...f, paymentPixName: e.target.value }))} placeholder="Nome do recebedor" />
+            </div>
+            <div>
+              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Cartão</label>
+              <input style={inputStyle} value={form.paymentCardInfo} onChange={e => setForm(f => ({ ...f, paymentCardInfo: e.target.value }))} placeholder="Débito/Crédito em até 3x" />
+            </div>
+            <div>
+              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Dinheiro</label>
+              <input style={inputStyle} value={form.paymentCashInfo} onChange={e => setForm(f => ({ ...f, paymentCashInfo: e.target.value }))} placeholder="Dinheiro" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Rodapé</label>
+          <input style={inputStyle} value={form.footerText} onChange={e => setForm(f => ({ ...f, footerText: e.target.value }))} placeholder="Hamburgueria artesanal • (11) 99999-8888" />
+        </div>
+
+        <button type="submit" className="btn btn-primary" disabled={updateMut.isPending} style={{ alignSelf: 'flex-start' }}>
+          {updateMut.isPending ? 'Salvando...' : saved ? '✓ Salvo!' : 'Salvar Configurações'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: '1rem', outline: 'none',
+  boxSizing: 'border-box',
+}

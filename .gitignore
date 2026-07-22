@@ -1,0 +1,42 @@
+node_modules/
+dist/
+build/
+
+# Database
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.bak
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+server.log
+server_err.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads
+client/dist/uploads/
+uploads/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Mobile
+mobile/.expo/
+mobile/android/
+mobile/ios/

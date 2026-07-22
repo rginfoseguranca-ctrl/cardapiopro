@@ -1,0 +1,252 @@
+import express from 'express'
+import cors from 'cors'
+import helmet from 'helmet'
+import compression from 'compression'
+import rateLimit from 'express-rate-limit'
+import path from 'path'
+import * as Sentry from '@sentry/node'
+import { initDatabase, dbGet, dbAll, dbRun } from './database'
+import { logger, createChildLogger } from './logger'
+import productsRouter from './routes/products'
+import ordersRouter from './routes/orders'
+import promotionsRouter from './routes/promotions'
+import dashboardRouter from './routes/dashboard'
+import customersRouter from './routes/customers'
+import customersPublicRouter from './routes/customers-public'
+import reviewsRouter from './routes/reviews'
+import chatRouter from './routes/chat'
+import authRouter from './routes/auth'
+import tablesRouter from './routes/tables'
+import couponsRouter from './routes/coupons'
+import loyaltyRouter from './routes/loyalty'
+import campaignsRouter from './routes/campaigns'
+import cashbackRouter from './routes/cashback'
+import abandonedRouter from './routes/abandoned'
+import { adminRouter as integrationsAdminRouter, webhookRouter as integrationsWebhookRouter } from './routes/integrations'
+import cashRegisterRouter from './routes/cash-register'
+import inventoryRouter from './routes/inventory'
+import invoicesRouter from './routes/invoices'
+import deliveryRouter from './routes/delivery'
+import printersRouter from './routes/printers'
+import fiadoRouter from './routes/fiado'
+import blogRouter from './routes/blog'
+import partnersRouter from './routes/partners'
+import leadsRouter from './routes/leads'
+import storeRouter from './routes/store'
+import notificationsRouter from './routes/notifications'
+import complementsRouter from './routes/complements'
+import financeRouter from './routes/finance'
+import driversRouter from './routes/drivers'
+import storesRouter from './routes/stores'
+import suppliesRouter from './routes/supplies'
+import paymentWebhooksRouter from './routes/payment-webhooks'
+import viacepRouter from './routes/viacep'
+import billingRouter from './routes/billing'
+import saasAdminRouter from './routes/saas-admin'
+import { errorHandler, authMiddleware, adminMiddleware } from './middleware'
+import { requireFeature } from './middleware/plan-gate'
+import { notifyAll } from './routes/notifications'
+import { setupSwagger } from './swagger'
+
+const serverLog = createChildLogger('server')
+
+function processScheduledOrders() {
+  try {
+    const now = new Date().toISOString()
+    const scheduledOrders = dbAll(
+      'SELECT * FROM orders WHERE scheduled_at IS NOT NULL AND scheduled_at <= ? AND status = ?',
+      [now, 'pending']
+    )
+    for (const order of scheduledOrders) {
+      dbRun('UPDATE orders SET status = ?, scheduled_at = NULL, updated_at = datetime("now") WHERE id = ?',
+        ['confirmed', order.id])
+      notifyAll({ type: 'new_order', order: {
+        id: order.id,
+        customerName: order.customer_name,
+        total: order.total,
+        paymentMethod: order.payment_method,
+        deliveryType: order.delivery_type
+      }})
+      serverLog.info({ orderId: order.id }, 'Pedido agendado confirmado')
+    }
+  } catch (err) {
+    serverLog.error({ err }, 'Erro ao processar pedidos agendados')
+  }
+}
+
+async function main() {
+  await initDatabase()
+  serverLog.info('Banco de dados inicializado')
+
+  const app = express()
+  const PORT = process.env.PORT || 3001
+
+  // Sentry error tracking
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+      tracesSampleRate: 0.2,
+    })
+    serverLog.info('Sentry error tracking habilitado')
+  }
+
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+      }
+    },
+    crossOriginEmbedderPolicy: false,
+  }))
+
+  // Compression
+  app.use(compression())
+
+  // HTTP request logging via Pino
+  app.use((req, res, next) => {
+    const start = Date.now()
+    res.on('finish', () => {
+      const ms = Date.now() - start
+      const meta = { method: req.method, url: req.url, status: res.statusCode, ms }
+      if (res.statusCode >= 500) serverLog.error(meta, 'request')
+      else if (res.statusCode >= 400) serverLog.warn(meta, 'request')
+      else serverLog.info(meta, 'request')
+    })
+    next()
+  })
+
+  // Body size limit (10mb)
+  app.use(express.json({ limit: '10mb' }))
+
+  // CORS
+  const corsOrigin = process.env.CORS_ORIGIN
+  if (!corsOrigin || corsOrigin === '*') {
+    serverLog.fatal('CORS_ORIGIN deve ser definido com domínio(s) específico(s), não wildcard.')
+    process.exit(1)
+  }
+  app.use(cors({
+    origin: corsOrigin.split(','),
+    credentials: true,
+  }))
+
+  // Rate limiting - global
+  const globalLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
+  })
+  app.use('/api/', globalLimiter)
+
+  // Stricter rate limit for auth endpoints
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
+  })
+  app.use('/api/auth/login', authLimiter)
+
+  // Health check
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() })
+  })
+
+  // Auth
+  app.use('/api/auth', authRouter)
+
+  // Billing (public plan listing + auth-protected routes)
+  app.use('/api/billing', billingRouter)
+
+  // SaaS Admin (super-admin only)
+  app.use('/api/saas', authMiddleware, adminMiddleware, saasAdminRouter)
+
+  // Public read routes
+  app.use('/api/products', productsRouter)
+  app.use('/api/orders', ordersRouter)
+  app.use('/api/promotions', promotionsRouter)
+  app.use('/api/reviews', reviewsRouter)
+  app.use('/api/chat', chatRouter)
+  app.use('/api/notifications', notificationsRouter)
+  app.use('/api/viacep', viacepRouter)
+  app.use('/api/webhooks/payment', paymentWebhooksRouter)
+  app.use('/api/webhooks/integrations', integrationsWebhookRouter)
+
+  // Public customer-facing routes
+  app.use('/api/customers/public', customersPublicRouter)
+  app.use('/api/store', storeRouter)
+  app.use('/api/coupons', couponsRouter)
+  app.use('/api/complements', complementsRouter)
+  app.use('/api/blog', blogRouter)
+  app.use('/api/stores', storesRouter)
+
+  // Protected routes (auth required)
+  app.use('/api/partners', authMiddleware, partnersRouter)
+  app.use('/api/leads', authMiddleware, leadsRouter)
+  app.use('/api/abandoned', authMiddleware, abandonedRouter)
+
+  // Admin-only routes (auth required)
+  app.use('/api/dashboard', authMiddleware, dashboardRouter)
+  app.use('/api/customers', authMiddleware, customersRouter)
+  app.use('/api/tables', authMiddleware, requireFeature('mesas'), tablesRouter)
+  app.use('/api/loyalty', authMiddleware, loyaltyRouter)
+  app.use('/api/campaigns', authMiddleware, campaignsRouter)
+  app.use('/api/cashback', authMiddleware, cashbackRouter)
+  app.use('/api/integrations', authMiddleware, integrationsAdminRouter)
+  app.use('/api/cash-register', authMiddleware, cashRegisterRouter)
+  app.use('/api/inventory', authMiddleware, requireFeature('inventory'), inventoryRouter)
+  app.use('/api/invoices', authMiddleware, invoicesRouter)
+  app.use('/api/delivery', authMiddleware, requireFeature('delivery'), deliveryRouter)
+  app.use('/api/printers', authMiddleware, requireFeature('mesas'), printersRouter)
+  app.use('/api/fiado', authMiddleware, requireFeature('fiado'), fiadoRouter)
+  app.use('/api/finance', authMiddleware, financeRouter)
+  app.use('/api/drivers', authMiddleware, requireFeature('delivery'), driversRouter)
+  app.use('/api/supplies', authMiddleware, requireFeature('inventory'), suppliesRouter)
+
+  // 404 for API routes
+  app.use('/api/*', (_req, res) => {
+    res.status(404).json({ error: 'Endpoint não encontrado' })
+  })
+
+  // Sentry error handler (before other error handlers)
+  if (process.env.SENTRY_DSN) {
+    Sentry.setupExpressErrorHandler(app)
+  }
+  app.use(errorHandler)
+
+  // Swagger docs
+  setupSwagger(app)
+
+  // Static files + SPA
+  app.use(express.static(path.join(__dirname, '..', '..', 'client', 'dist')))
+  app.use('/uploads', express.static(path.join(__dirname, '..', '..', 'client', 'dist', 'uploads')))
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'client', 'dist', 'index.html'))
+  })
+
+  // Graceful shutdown
+  const server = app.listen(PORT, () => {
+    serverLog.info({ port: PORT }, `Servidor rodando em http://localhost:${PORT}`)
+  })
+
+  setInterval(processScheduledOrders, 60000)
+
+  process.on('SIGTERM', () => {
+    serverLog.info('SIGTERM recebido. Desligando graciosamente...')
+    server.close(() => process.exit(0))
+  })
+  process.on('SIGINT', () => {
+    serverLog.info('SIGINT recebido. Desligando graciosamente...')
+    server.close(() => process.exit(0))
+  })
+}
+
+main().catch(console.error)
