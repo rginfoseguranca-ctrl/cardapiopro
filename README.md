@@ -200,5 +200,5 @@ MIT
 
 ## Suporte
 
-- Email: suporte@seudominio.com
-- WhatsApp: (00) 00000-0000
+- Email: rginfoseguranca@gmail.com
+- WhatsApp: (62) 99324-8326
