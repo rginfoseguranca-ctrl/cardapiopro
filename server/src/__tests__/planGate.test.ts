@@ -7,23 +7,24 @@ beforeAll(async () => {
 
 describe('Plan Gate', () => {
   const PLAN_FEATURES: Record<string, string[]> = {
-    delivery: ['cardapio', 'orders', 'delivery', 'kds', 'customers', 'coupons', 'blog'],
-    mesa: ['cardapio', 'orders', 'delivery', 'kds', 'customers', 'coupons', 'blog', 'mesas', 'pdv', 'fiado', 'inventory'],
+    start: ['cardapio', 'orders', 'customers', 'coupons', 'blog', 'loyalty'],
+    profissional: ['cardapio', 'orders', 'customers', 'coupons', 'blog', 'loyalty', 'delivery', 'mesas', 'pdv', 'fiado', 'inventory', 'kds'],
     premium: ['*'],
   }
 
-  it('delivery plan has required features', () => {
-    const features = PLAN_FEATURES.delivery
+  it('start plan has basic features', () => {
+    const features = PLAN_FEATURES.start
     expect(features).toContain('cardapio')
     expect(features).toContain('orders')
-    expect(features).toContain('delivery')
-    expect(features).toContain('kds')
+    expect(features).toContain('customers')
+    expect(features).not.toContain('delivery')
     expect(features).not.toContain('mesas')
     expect(features).not.toContain('fiado')
   })
 
-  it('mesa plan has table and fiado features', () => {
-    const features = PLAN_FEATURES.mesa
+  it('profissional plan has delivery and table features', () => {
+    const features = PLAN_FEATURES.profissional
+    expect(features).toContain('delivery')
     expect(features).toContain('mesas')
     expect(features).toContain('fiado')
     expect(features).toContain('inventory')
@@ -43,9 +44,10 @@ describe('Plan Gate', () => {
       return 'premium'
     }
 
-    expect(getMinPlanForFeature('cardapio')).toBe('delivery')
-    expect(getMinPlanForFeature('mesas')).toBe('mesa')
-    expect(getMinPlanForFeature('fiado')).toBe('mesa')
-    expect(getMinPlanForFeature('pdv')).toBe('mesa')
+    expect(getMinPlanForFeature('cardapio')).toBe('start')
+    expect(getMinPlanForFeature('delivery')).toBe('profissional')
+    expect(getMinPlanForFeature('mesas')).toBe('profissional')
+    expect(getMinPlanForFeature('fiado')).toBe('profissional')
+    expect(getMinPlanForFeature('pdv')).toBe('profissional')
   })
 })

@@ -6,25 +6,25 @@ import { v4 as uuid } from 'uuid'
 const router = Router()
 
 export const PLANS: Record<string, { name: string; price: number; features: string[]; maxProducts: number; maxOrdersMonth: number; maxUsers: number }> = {
-  delivery: {
-    name: 'Delivery',
-    price: 0,
-    features: ['cardapio', 'orders', 'delivery', 'kds', 'customers', 'coupons', 'blog'],
+  start: {
+    name: 'Start',
+    price: 49.99,
+    features: ['cardapio', 'orders', 'customers', 'coupons', 'blog', 'loyalty'],
     maxProducts: 100,
     maxOrdersMonth: 2000,
-    maxUsers: 3,
+    maxUsers: 2,
   },
-  mesa: {
-    name: 'Mesa',
-    price: 0,
-    features: ['cardapio', 'orders', 'delivery', 'kds', 'customers', 'coupons', 'blog', 'mesas', 'pdv', 'fiado', 'inventory'],
+  profissional: {
+    name: 'Profissional',
+    price: 79.99,
+    features: ['cardapio', 'orders', 'customers', 'coupons', 'blog', 'loyalty', 'delivery', 'mesas', 'pdv', 'fiado', 'inventory', 'kds'],
     maxProducts: 500,
     maxOrdersMonth: 5000,
     maxUsers: 5,
   },
   premium: {
     name: 'Premium',
-    price: 0,
+    price: 149.99,
     features: ['*'],
     maxProducts: -1,
     maxOrdersMonth: -1,
@@ -43,21 +43,22 @@ router.get('/subscription', authMiddleware, (req: Request, res: Response) => {
   if (!sub) {
     const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
     dbRun('INSERT INTO subscriptions (id, store_id, plan, status, trial_ends_at) VALUES (?, ?, ?, ?, ?)',
-      ['sub_' + uuid(), storeId, 'premium', 'active', trialEndsAt])
+      ['sub_' + uuid(), storeId, 'premium', 'trialing', trialEndsAt])
     const newSub = dbGet('SELECT * FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId])
     return res.json(newSub)
   }
 
   if (sub.status === 'trialing' && sub.trial_ends_at && new Date(sub.trial_ends_at) < new Date()) {
-    dbRun('UPDATE subscriptions SET status = ?, updated_at = datetime(\'now\') WHERE id = ?', ['active', sub.id])
+    dbRun('UPDATE subscriptions SET status = ?, plan = ?, updated_at = datetime(\'now\') WHERE id = ?', ['active', 'start', sub.id])
     sub.status = 'active'
+    sub.plan = 'start'
   }
 
   const plan = PLANS[sub.plan as keyof typeof PLANS] || PLANS.premium
   res.json({
     ...sub,
     planDetails: plan,
-    isTrial: false,
+    isTrial: sub.status === 'trialing',
     trialExpired: false,
   })
 })

@@ -17,23 +17,23 @@ const features = [
 
 const plans = [
   {
-    name: 'Delivery',
-    price: '169,90',
-    desc: 'Para quem começa no delivery',
-    features: ['Cardápio Digital', 'Pedidos WhatsApp', 'Gestão de Pedidos', 'Pagamento Online', 'Dashboard'],
+    name: 'Start',
+    price: '49,99',
+    desc: 'Para quem começa no digital',
+    features: ['Cardápio Digital', 'Pedidos WhatsApp', 'Dashboard', 'Clientes', 'Cupons'],
   },
   {
-    name: 'Mesas',
-    price: '249,90',
-    desc: 'Para restaurantes com salão',
-    features: ['Tudo do Delivery', 'QR Code por Mesa', 'KDS Cozinha', 'PDV Integrado', 'Impressoras'],
+    name: 'Profissional',
+    price: '79,99',
+    desc: 'Gestão completa do restaurante',
+    features: ['Tudo do Start', 'Delivery', 'Mesas & KDS', 'PDV', 'Estoque'],
     popular: true,
   },
   {
     name: 'Premium',
-    price: '349,90',
+    price: '149,99',
     desc: 'Para quem quer crescer forte',
-    features: ['Tudo dos anteriores', 'Chatbot IA', 'Fidelidade & Cashback', 'CRM Completo', 'Financeiro', 'Suporte VIP'],
+    features: ['Tudo do Profissional', 'Chatbot IA', 'CRM', 'Cashback', 'Suporte VIP'],
   },
 ]
 

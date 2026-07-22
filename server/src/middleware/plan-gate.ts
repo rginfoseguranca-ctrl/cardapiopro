@@ -3,8 +3,8 @@ import { dbGet } from '../database'
 import { AuthRequest } from '../middleware'
 
 const PLAN_FEATURES: Record<string, string[]> = {
-  delivery: ['cardapio', 'orders', 'delivery', 'kds', 'customers', 'coupons', 'blog'],
-  mesa: ['cardapio', 'orders', 'delivery', 'kds', 'customers', 'coupons', 'blog', 'mesas', 'pdv', 'fiado', 'inventory'],
+  start: ['cardapio', 'orders', 'customers', 'coupons', 'blog', 'loyalty'],
+  profissional: ['cardapio', 'orders', 'customers', 'coupons', 'blog', 'loyalty', 'delivery', 'mesas', 'pdv', 'fiado', 'inventory', 'kds'],
   premium: ['*'],
 }
 

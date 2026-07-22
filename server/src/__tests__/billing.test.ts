@@ -24,12 +24,12 @@ describe('Billing & Subscriptions', () => {
 
   it('updates subscription status', () => {
     dbRun(
-      "UPDATE subscriptions SET status = 'active', plan = 'mesa' WHERE store_id = ?",
+      "UPDATE subscriptions SET status = 'active', plan = 'profissional' WHERE store_id = ?",
       [testStoreId]
     )
     const sub = dbGet('SELECT * FROM subscriptions WHERE store_id = ?', [testStoreId])
     expect(sub.status).toBe('active')
-    expect(sub.plan).toBe('mesa')
+    expect(sub.plan).toBe('profissional')
   })
 
   it('can cancel subscription', () => {
