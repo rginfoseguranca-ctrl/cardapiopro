@@ -246,6 +246,8 @@ export default function Dashboard() {
         {tab === 'pdv' && <PDVPanel />}
         {tab === 'produtos' && <ProdutosPanel />}
         {tab === 'complements' && <ComplementsPanel />}
+        {tab === 'combos' && <ProdutosPanel />}
+        {tab === 'estoque-simples' && <EstoquePanel />}
         {tab === 'caixa' && <CaixaPanel />}
         {tab === 'estoque' && <EstoquePanel />}
         {tab === 'notas' && <NotasPanel />}
