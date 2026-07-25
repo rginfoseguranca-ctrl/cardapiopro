@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getStoreSettings, type StoreSettings } from './api/client'
 import Header from './components/Header'
@@ -36,10 +36,20 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import AdminPage from './pages/admin/AdminPage'
+import Materiais from './pages/Materiais'
+
+const HIDE_HEADER_PATHS = ['/dashboard', '/admin', '/kds']
 
 export default function App() {
+  const location = useLocation()
   const [cartOpen, setCartOpen] = useState(false)
   const { data: settings } = useQuery({ queryKey: ['storeSettings'], queryFn: getStoreSettings })
+
+  const isAppPage = HIDE_HEADER_PATHS.some(p => location.pathname.startsWith(p)) ||
+    location.pathname.startsWith('/mesa/') ||
+    location.pathname === '/balcao'
+
+  const isLanding = location.pathname === '/'
 
   useEffect(() => {
     if (settings) {
@@ -58,10 +68,14 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <Header onCartClick={() => setCartOpen(true)} storeIcon={storeIcon} storeName={storeName} whatsapp={settings?.whatsapp} />
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      {!isAppPage && (
+        <>
+          <Header onCartClick={() => setCartOpen(true)} storeIcon={storeIcon} storeName={storeName} whatsapp={settings?.whatsapp} />
+          <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+          <ChatBot />
+        </>
+      )}
       <ChangePasswordModal />
-      <ChatBot />
       <ToastContainer />
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -88,36 +102,40 @@ export default function App() {
         <Route path="/fidelidade" element={<LoyaltyDashboard />} />
         <Route path="/privacidade" element={<Privacy />} />
         <Route path="/termos" element={<Terms />} />
+        <Route path="/materiais" element={<Materiais />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 
-      <footer style={{
-        background: '#2c3e50', color: '#fff', padding: '24px 0', marginTop: 40,
-        textAlign: 'center', fontSize: '.85rem'
-      }}>
-        <div className="container">
-          <p style={{ fontWeight: 700, marginBottom: 8 }}>{storeIcon} {storeName}</p>
-          <p style={{ color: '#bdc3c7', marginBottom: 12 }}>{footerText}</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <Link to="/" style={{ color: '#bdc3c7' }}>Cardápio</Link>
-            <Link to="/balcao" style={{ color: '#bdc3c7' }}>Balcão</Link>
-            <Link to="/planos" style={{ color: '#bdc3c7' }}>Planos</Link>
-            <Link to="/blog" style={{ color: '#bdc3c7' }}>Blog</Link>
-            <Link to="/parceiros" style={{ color: '#bdc3c7' }}>Parceiros</Link>
-            <Link to="/about" style={{ color: '#bdc3c7' }}>Quem Somos</Link>
-            <Link to="/help" style={{ color: '#bdc3c7' }}>Ajuda</Link>
-            <Link to="/historico" style={{ color: '#bdc3c7' }}>Meus Pedidos</Link>
-            <Link to="/fidelidade" style={{ color: '#bdc3c7' }}>Fidelidade</Link>
-            <Link to="/privacidade" style={{ color: '#bdc3c7' }}>Privacidade</Link>
-            <Link to="/termos" style={{ color: '#bdc3c7' }}>Termos</Link>
-            <Link to="/dashboard" style={{ color: '#bdc3c7' }}>Admin</Link>
+      {!isAppPage && !isLanding && (
+        <footer style={{
+          background: '#2c3e50', color: '#fff', padding: '24px 0', marginTop: 40,
+          textAlign: 'center', fontSize: '.85rem'
+        }}>
+          <div className="container">
+            <p style={{ fontWeight: 700, marginBottom: 8 }}>{storeIcon} {storeName}</p>
+            <p style={{ color: '#bdc3c7', marginBottom: 12 }}>{footerText}</p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <Link to="/cardapio" style={{ color: '#bdc3c7' }}>Cardápio</Link>
+              <Link to="/balcao" style={{ color: '#bdc3c7' }}>Balcão</Link>
+              <Link to="/planos" style={{ color: '#bdc3c7' }}>Planos</Link>
+              <Link to="/blog" style={{ color: '#bdc3c7' }}>Blog</Link>
+              <Link to="/parceiros" style={{ color: '#bdc3c7' }}>Parceiros</Link>
+              <Link to="/about" style={{ color: '#bdc3c7' }}>Quem Somos</Link>
+              <Link to="/help" style={{ color: '#bdc3c7' }}>Ajuda</Link>
+              <Link to="/historico" style={{ color: '#bdc3c7' }}>Meus Pedidos</Link>
+              <Link to="/fidelidade" style={{ color: '#bdc3c7' }}>Fidelidade</Link>
+              <Link to="/materiais" style={{ color: '#bdc3c7' }}>Materiais</Link>
+              <Link to="/privacidade" style={{ color: '#bdc3c7' }}>Privacidade</Link>
+              <Link to="/termos" style={{ color: '#bdc3c7' }}>Termos</Link>
+              <Link to="/dashboard" style={{ color: '#bdc3c7' }}>Admin</Link>
+            </div>
+            <p style={{ color: '#7f8c8d', marginTop: 12, fontSize: '.8rem' }}>
+              © {new Date().getFullYear()} {storeName}. Todos os direitos reservados.
+            </p>
           </div>
-          <p style={{ color: '#7f8c8d', marginTop: 12, fontSize: '.8rem' }}>
-            © {new Date().getFullYear()} {storeName}. Todos os direitos reservados.
-          </p>
-        </div>
-      </footer>
+        </footer>
+      )}
     </ErrorBoundary>
   )
 }

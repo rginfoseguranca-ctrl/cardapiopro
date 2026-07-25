@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getStoreSettings, updateStoreSettings, type StoreSettings } from '../api/client'
+import { getStoreSettings, updateStoreSettings, uploadProductImage, type StoreSettings } from '../api/client'
 
 export default function PersonalizarSite() {
   const queryClient = useQueryClient()
@@ -21,6 +21,8 @@ export default function PersonalizarSite() {
   const [showScheduling, setShowScheduling] = useState(settings?.schedulingEnabled || false)
   const [logoPreview, setLogoPreview] = useState(settings?.logoUrl || '')
   const [saved, setSaved] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (settings) {
@@ -29,6 +31,18 @@ export default function PersonalizarSite() {
       setLogoPreview(settings.logoUrl || '')
     }
   }, [settings])
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingLogo(true)
+    try {
+      const { imageUrl } = await uploadProductImage(file)
+      setLogoPreview(imageUrl)
+    } catch { alert('Erro ao enviar logo') }
+    setUploadingLogo(false)
+    if (logoFileRef.current) logoFileRef.current.value = ''
+  }
 
   const handleSave = () => {
     updateMut.mutate({ primaryColor, schedulingEnabled: showScheduling, logoUrl: logoPreview })
@@ -138,31 +152,42 @@ export default function PersonalizarSite() {
           <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.06)', padding: 24 }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#333', marginBottom: 16 }}>Logo</h3>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{
-                width: 64,
-                height: 64,
-                borderRadius: 12,
-                background: '#f9fafb',
-                border: '2px dashed #ddd',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.5rem',
-              }}>
-                {logoPreview ? '🖼️' : '📷'}
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 12,
+                  background: logoPreview ? 'transparent' : '#f9fafb',
+                  border: '2px dashed #ddd',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.5rem',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                }}
+                onClick={() => logoFileRef.current?.click()}
+              >
+                {logoPreview ? <img src={logoPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '📷'}
               </div>
               <div>
-                <button style={{
-                  padding: '8px 16px',
-                  borderRadius: 8,
-                  border: '1px solid #ddd',
-                  background: '#fff',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  color: '#333',
-                }}>
-                  Escolher Arquivo
+                <input ref={logoFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
+                <button
+                  type="button"
+                  onClick={() => logoFileRef.current?.click()}
+                  disabled={uploadingLogo}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #ddd',
+                    background: '#fff',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    color: '#333',
+                  }}
+                >
+                  {uploadingLogo ? 'Enviando...' : 'Escolher Arquivo'}
                 </button>
                 <p style={{ fontSize: '0.78rem', color: '#999', marginTop: 4 }}>PNG ou JPG, até 2MB</p>
               </div>

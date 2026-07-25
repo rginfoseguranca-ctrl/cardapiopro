@@ -857,8 +857,38 @@ function ProdutosPanel() {
     padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: '.8rem', outline: 'none', background: '#fff',
   }
 
+  const [dragOver, setDragOver] = useState(false)
+
+  const handleDrop = async (e: React.DragEvent, target: 'new' | 'edit') => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file || !file.type.startsWith('image/')) return
+    if (target === 'new') {
+      setUploadingNew(true)
+      try {
+        const { imageUrl } = await uploadProductImage(file)
+        setNewForm(f => ({ ...f, image: imageUrl }))
+        setNewImagePreview(imageUrl)
+      } catch { alert('Erro ao enviar imagem') }
+      setUploadingNew(false)
+    } else {
+      setUploadingEdit(true)
+      try {
+        const { imageUrl } = await uploadProductImage(file)
+        setEditForm(f => ({ ...f, image: imageUrl }))
+        setEditImagePreview(imageUrl)
+      } catch { alert('Erro ao enviar imagem') }
+      setUploadingEdit(false)
+    }
+  }
+
+  const dropZoneStyle: React.CSSProperties = {
+    width: 120, height: 120, borderRadius: 12, border: `2px dashed ${dragOver ? 'var(--primary)' : '#ddd'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: '.2s', background: dragOver ? '#fef5f5' : '#fafafa', flexShrink: 0,
+  }
+
   const imagePreviewContainer: React.CSSProperties = {
-    width: 48, height: 48, borderRadius: 8, overflow: 'hidden', border: '1px solid #eee', flexShrink: 0,
+    width: 120, height: 120, borderRadius: 12, overflow: 'hidden', border: '2px solid #eee', flexShrink: 0, position: 'relative' as const,
   }
 
   const imagePreviewImg: React.CSSProperties = {
@@ -882,20 +912,33 @@ function ProdutosPanel() {
             <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço *" value={newForm.price} onChange={e => setNewForm(f => ({ ...f, price: e.target.value }))} required />
             <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço Promo" value={newForm.pricePromotional} onChange={e => setNewForm(f => ({ ...f, pricePromotional: e.target.value }))} />
             <input className="input" style={inputStyle} placeholder="Descrição" value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {newImagePreview && <div style={imagePreviewContainer}><img src={newImagePreview} style={imagePreviewImg} /></div>}
-              <input ref={newFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleNewImageUpload} />
-              <button type="button" className="btn btn-outline btn-sm" onClick={() => newFileRef.current?.click()} disabled={uploadingNew}>
-                {uploadingNew ? '...' : '📷 Imagem'}
-              </button>
-              <input className="input" style={{ ...inputStyle, width: 120 }} placeholder="ou URL" value={newForm.image} onChange={e => { setNewForm(f => ({ ...f, image: e.target.value })); setNewImagePreview(e.target.value) }} />
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div>
+                {newImagePreview ? (
+                  <div style={imagePreviewContainer} onClick={() => newFileRef.current?.click()}>
+                    <img src={newImagePreview} style={imagePreviewImg} />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', color: '#fff', textAlign: 'center', fontSize: '.65rem', padding: '2px 0' }}>Trocar</div>
+                  </div>
+                ) : (
+                  <div style={dropZoneStyle} onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={e => handleDrop(e, 'new')} onClick={() => newFileRef.current?.click()}>
+                    {uploadingNew ? <span style={{ fontSize: '1.5rem', animation: 'spin 1s linear infinite' }}>⏳</span> : <span style={{ fontSize: '1.5rem' }}>📷</span>}
+                    <span style={{ fontSize: '.65rem', color: '#999', marginTop: 4 }}>{uploadingNew ? 'Enviando...' : 'Arraste ou clique'}</span>
+                  </div>
+                )}
+                <input ref={newFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleNewImageUpload} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 120 }}>
+                <input className="input" style={{ ...inputStyle, width: '100%' }} placeholder="ou cole a URL da imagem" value={newForm.image} onChange={e => { setNewForm(f => ({ ...f, image: e.target.value })); setNewImagePreview(e.target.value) }} />
+                <input className="input" style={{ ...inputStyle, width: '100%' }} placeholder="Ingredientes (vírgula)" value={newForm.ingredients} onChange={e => setNewForm(f => ({ ...f, ingredients: e.target.value }))} />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select className="input" style={{ ...inputStyle, flex: 1 }} value={newForm.categoryId} onChange={e => setNewForm(f => ({ ...f, categoryId: e.target.value }))}>
+                    <option value="">Sem categoria</option>
+                    {categories?.map((c: any) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                  </select>
+                  <label style={{ fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={newForm.isHighlighted} onChange={e => setNewForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
+                </div>
+              </div>
             </div>
-            <input className="input" style={inputStyle} placeholder="Ingredientes (vírgula)" value={newForm.ingredients} onChange={e => setNewForm(f => ({ ...f, ingredients: e.target.value }))} />
-            <select className="input" style={inputStyle} value={newForm.categoryId} onChange={e => setNewForm(f => ({ ...f, categoryId: e.target.value }))}>
-              <option value="">Sem categoria</option>
-              {categories?.map((c: any) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-            </select>
-            <label style={{ fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={newForm.isHighlighted} onChange={e => setNewForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
             <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Criar Produto</button>
           </form>
 
@@ -934,23 +977,37 @@ function ProdutosPanel() {
             <div key={p.id} className="dashboard-card" style={{ padding: 14 }}>
               {editing === p.id ? (
                 <div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                    <input style={inputStyle} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                    <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: Number(e.target.value) }))} />
-                    <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" placeholder="Promo" value={editForm.pricePromotional} onChange={e => setEditForm(f => ({ ...f, pricePromotional: e.target.value }))} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {editImagePreview && <div style={imagePreviewContainer}><img src={editImagePreview} style={imagePreviewImg} /></div>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
+                    <div>
+                      {editImagePreview ? (
+                        <div style={imagePreviewContainer} onClick={() => editFileRef.current?.click()}>
+                          <img src={editImagePreview} style={imagePreviewImg} />
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', color: '#fff', textAlign: 'center', fontSize: '.65rem', padding: '2px 0' }}>Trocar</div>
+                        </div>
+                      ) : (
+                        <div style={dropZoneStyle} onDragOver={e => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={e => handleDrop(e, 'edit')} onClick={() => editFileRef.current?.click()}>
+                          {uploadingEdit ? <span style={{ fontSize: '1.5rem' }}>⏳</span> : <span style={{ fontSize: '1.5rem' }}>📷</span>}
+                          <span style={{ fontSize: '.65rem', color: '#999', marginTop: 4 }}>{uploadingEdit ? 'Enviando...' : 'Arraste ou clique'}</span>
+                        </div>
+                      )}
                       <input ref={editFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEditImageUpload} />
-                      <button type="button" className="btn btn-outline btn-sm" onClick={() => editFileRef.current?.click()} disabled={uploadingEdit}>
-                        {uploadingEdit ? '...' : '📷'}
-                      </button>
-                      <input style={{ ...inputStyle, width: 110 }} value={editForm.image} onChange={e => { setEditForm(f => ({ ...f, image: e.target.value })); setEditImagePreview(e.target.value) }} placeholder="URL imagem" />
                     </div>
-                    <input style={inputStyle} value={editForm.ingredients} onChange={e => setEditForm(f => ({ ...f, ingredients: e.target.value }))} placeholder="Ingredientes (vírgula)" />
-                    <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isHighlighted} onChange={e => setEditForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
-                    <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isAvailable} onChange={e => setEditForm(f => ({ ...f, isAvailable: e.target.checked }))} /> Disponível</label>
-                    <button className="btn btn-primary btn-sm" onClick={() => updateMut.mutate({ id: p.id, data: { ...editForm, ingredients: editForm.ingredients.split(',').map((s: string) => s.trim()), pricePromotional: editForm.pricePromotional || null } })}>Salvar</button>
-                    <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancelar</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                      <input style={inputStyle} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome" />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: Number(e.target.value) }))} placeholder="Preço" />
+                        <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" placeholder="Promo" value={editForm.pricePromotional} onChange={e => setEditForm(f => ({ ...f, pricePromotional: e.target.value }))} />
+                      </div>
+                      <input style={{ ...inputStyle, width: '100%' }} value={editForm.ingredients} onChange={e => setEditForm(f => ({ ...f, ingredients: e.target.value }))} placeholder="Ingredientes (vírgula)" />
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isHighlighted} onChange={e => setEditForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
+                        <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isAvailable} onChange={e => setEditForm(f => ({ ...f, isAvailable: e.target.checked }))} /> Disponível</label>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-primary btn-sm" onClick={() => updateMut.mutate({ id: p.id, data: { ...editForm, ingredients: editForm.ingredients.split(',').map((s: string) => s.trim()), pricePromotional: editForm.pricePromotional || null } })}>Salvar</button>
+                        <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancelar</button>
+                      </div>
+                    </div>
                   </div>
 
                   <div style={{ marginTop: 10, borderTop: '1px solid #eee', paddingTop: 8 }}>
