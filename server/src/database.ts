@@ -618,6 +618,19 @@ function runMigrations(): void {
   addColumnIfMissing('company_settings', 'delivery_fee', 'REAL DEFAULT 0')
   addColumnIfMissing('company_settings', 'free_delivery_from', 'REAL DEFAULT 0')
   addColumnIfMissing('company_settings', 'avisos', "TEXT DEFAULT '[]'")
+  db.run(`
+    CREATE TABLE IF NOT EXISTS delivery_areas (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      base_fee REAL DEFAULT 0,
+      free_delivery_from REAL DEFAULT 0,
+      radius REAL DEFAULT 0,
+      active INTEGER DEFAULT 1,
+      store_id TEXT DEFAULT 'main',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
   addColumnIfMissing('orders', 'store_id', "TEXT DEFAULT ''")
   addColumnIfMissing('orders', 'delivery_fee', 'REAL DEFAULT 0')
   addColumnIfMissing('users', 'must_change_password', 'INTEGER DEFAULT 0')

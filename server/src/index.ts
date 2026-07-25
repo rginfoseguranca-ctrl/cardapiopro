@@ -39,6 +39,7 @@ import financeRouter from './routes/finance'
 import driversRouter from './routes/drivers'
 import storesRouter from './routes/stores'
 import suppliesRouter from './routes/supplies'
+import deliveryAreasRouter from './routes/delivery-areas'
 import paymentWebhooksRouter from './routes/payment-webhooks'
 import viacepRouter from './routes/viacep'
 import billingRouter from './routes/billing'
@@ -209,6 +210,7 @@ async function main() {
   app.use('/api/fiado', authMiddleware, requireFeature('fiado'), fiadoRouter)
   app.use('/api/finance', authMiddleware, financeRouter)
   app.use('/api/drivers', authMiddleware, requireFeature('delivery'), driversRouter)
+  app.use('/api/delivery-areas', authMiddleware, deliveryAreasRouter)
   app.use('/api/supplies', authMiddleware, requireFeature('inventory'), suppliesRouter)
 
   // 404 for API routes

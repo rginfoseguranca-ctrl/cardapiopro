@@ -1,19 +1,15 @@
-import { useState } from 'react';
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '../api/client'
 
 interface DeliveryArea {
-  id: string;
-  name: string;
-  base_fee: number;
-  free_delivery_from: number;
-  radius: number;
-  active: boolean;
+  id: string
+  name: string
+  baseFee: number
+  freeDeliveryFrom: number
+  radius: number
+  active: boolean
 }
-
-const initialAreas: DeliveryArea[] = [
-  { id: '1', name: 'Centro', base_fee: 5.0, free_delivery_from: 50.0, radius: 3, active: true },
-  { id: '2', name: 'Bairros Próximos', base_fee: 8.0, free_delivery_from: 80.0, radius: 6, active: true },
-  { id: '3', name: 'Zona Sul', base_fee: 12.0, free_delivery_from: 100.0, radius: 10, active: false },
-];
 
 const styles: Record<string, React.CSSProperties> = {
   page: { padding: 24, display: 'flex', flexDirection: 'column', gap: 20, fontFamily: 'Inter, sans-serif', background: '#f5f5f5', minHeight: '100vh' },
@@ -30,30 +26,39 @@ const styles: Record<string, React.CSSProperties> = {
   badge: { padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 },
   badgeActive: { background: '#dcfce7', color: '#16a34a' },
   badgeInactive: { background: '#fee2e2', color: '#dc2626' },
-};
+}
 
 export default function AreasEntrega() {
-  const [areas, setAreas] = useState<DeliveryArea[]>(initialAreas);
-  const [name, setName] = useState('');
-  const [baseFee, setBaseFee] = useState('');
-  const [freeFrom, setFreeFrom] = useState('');
-  const [radius, setRadius] = useState('');
+  const queryClient = useQueryClient()
+  const { data: areas = [], isLoading } = useQuery<DeliveryArea[]>({
+    queryKey: ['deliveryAreas'],
+    queryFn: async () => { const { data } = await api.get('/delivery-areas'); return data },
+  })
+
+  const [name, setName] = useState('')
+  const [baseFee, setBaseFee] = useState('')
+  const [freeFrom, setFreeFrom] = useState('')
+  const [radius, setRadius] = useState('')
+
+  const createMut = useMutation({
+    mutationFn: (data: any) => api.post('/delivery-areas', data).then(r => r.data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['deliveryAreas'] }); setName(''); setBaseFee(''); setFreeFrom(''); setRadius('') },
+  })
+
+  const toggleMut = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => api.put(`/delivery-areas/${id}`, { active }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['deliveryAreas'] }),
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.delete(`/delivery-areas/${id}`).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['deliveryAreas'] }),
+  })
 
   const handleAdd = () => {
-    if (!name) return;
-    setAreas([...areas, {
-      id: Date.now().toString(),
-      name,
-      base_fee: parseFloat(baseFee) || 0,
-      free_delivery_from: parseFloat(freeFrom) || 0,
-      radius: parseFloat(radius) || 0,
-      active: true,
-    }]);
-    setName('');
-    setBaseFee('');
-    setFreeFrom('');
-    setRadius('');
-  };
+    if (!name) return
+    createMut.mutate({ name, baseFee: parseFloat(baseFee) || 0, freeDeliveryFrom: parseFloat(freeFrom) || 0, radius: parseFloat(radius) || 0 })
+  }
 
   return (
     <div style={styles.page}>
@@ -68,49 +73,71 @@ export default function AreasEntrega() {
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Taxa Base (R$)</label>
-            <input style={styles.input} type="number" value={baseFee} onChange={e => setBaseFee(e.target.value)} placeholder="0.00" />
+            <input style={styles.input} type="number" step="0.50" value={baseFee} onChange={e => setBaseFee(e.target.value)} placeholder="0.00" />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Entrega Grátis Acima de (R$)</label>
-            <input style={styles.input} type="number" value={freeFrom} onChange={e => setFreeFrom(e.target.value)} placeholder="0.00" />
+            <input style={styles.input} type="number" step="1" value={freeFrom} onChange={e => setFreeFrom(e.target.value)} placeholder="0.00" />
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Raio (km)</label>
-            <input style={styles.input} type="number" value={radius} onChange={e => setRadius(e.target.value)} placeholder="0" />
+            <input style={styles.input} type="number" step="0.5" value={radius} onChange={e => setRadius(e.target.value)} placeholder="0" />
           </div>
-          <button style={styles.btn} onClick={handleAdd}>Adicionar</button>
+          <button style={styles.btn} onClick={handleAdd} disabled={createMut.isPending || !name}>{createMut.isPending ? 'Salvando...' : 'Adicionar'}</button>
         </div>
       </div>
 
       <div style={styles.card}>
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Áreas Configuradas</h3>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Área</th>
-              <th style={styles.th}>Taxa Base</th>
-              <th style={styles.th}>Entrega Grátis Acima de</th>
-              <th style={styles.th}>Raio</th>
-              <th style={styles.th}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {areas.map(area => (
-              <tr key={area.id}>
-                <td style={styles.td}>{area.name}</td>
-                <td style={styles.td}>R$ {area.base_fee.toFixed(2)}</td>
-                <td style={styles.td}>R$ {area.free_delivery_from.toFixed(2)}</td>
-                <td style={styles.td}>{area.radius} km</td>
-                <td style={styles.td}>
-                  <span style={{ ...styles.badge, ...(area.active ? styles.badgeActive : styles.badgeInactive) }}>
-                    {area.active ? 'Ativa' : 'Inativa'}
-                  </span>
-                </td>
+        {isLoading ? <p style={{ color: '#888', fontSize: 14 }}>Carregando...</p> : (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Área</th>
+                <th style={styles.th}>Taxa Base</th>
+                <th style={styles.th}>Entrega Grátis Acima de</th>
+                <th style={styles.th}>Raio</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Ações</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {areas.map(area => (
+                <tr key={area.id}>
+                  <td style={styles.td}>{area.name}</td>
+                  <td style={styles.td}>R$ {area.baseFee.toFixed(2)}</td>
+                  <td style={styles.td}>R$ {area.freeDeliveryFrom.toFixed(2)}</td>
+                  <td style={styles.td}>{area.radius} km</td>
+                  <td style={styles.td}>
+                    <span style={{ ...styles.badge, ...(area.active ? styles.badgeActive : styles.badgeInactive) }}>
+                      {area.active ? 'Ativa' : 'Inativa'}
+                    </span>
+                  </td>
+                  <td style={styles.td}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', fontSize: 12, cursor: 'pointer' }}
+                        onClick={() => toggleMut.mutate({ id: area.id, active: !area.active })}
+                      >
+                        {area.active ? 'Desativar' : 'Ativar'}
+                      </button>
+                      <button
+                        style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', fontSize: 12, cursor: 'pointer', color: '#dc2626' }}
+                        onClick={() => { if (confirm(`Remover área "${area.name}"?`)) deleteMut.mutate(area.id) }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {areas.length === 0 && (
+                <tr><td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#888', padding: 40 }}>Nenhuma área de entrega configurada</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
-  );
+  )
 }
