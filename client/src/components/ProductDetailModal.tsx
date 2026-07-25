@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getComplementGroups, type ComplementGroup, type Complement, type Product } from '../api/client'
 import { useCart } from '../hooks/useCart'
@@ -86,17 +87,17 @@ export default function ProductDetailModal({ product, open, onClose }: Props) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <>
       <div className="overlay" onClick={onClose} />
       <div className="animate-scaleIn" style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        width: '92%', maxWidth: 500, maxHeight: '88vh', background: '#fff',
-        borderRadius: 16, zIndex: 300, overflow: 'hidden',
+        width: '92%', maxWidth: 500, maxHeight: '90vh',
+        background: '#fff', borderRadius: 16, zIndex: 300, overflow: 'hidden',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 20px 60px rgba(0,0,0,.25)',
       }}>
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', flexShrink: 0, height: 160, overflow: 'hidden', borderRadius: '16px 16px 0 0' }}>
           <button onClick={onClose} style={{
             position: 'absolute', top: 8, right: 8, zIndex: 10,
             width: 32, height: 32, borderRadius: '50%',
@@ -104,12 +105,12 @@ export default function ProductDetailModal({ product, open, onClose }: Props) {
             fontSize: '1rem', cursor: 'pointer',
           }}>✕</button>
           <div style={{
-            width: '100%', height: 180,
+            width: '100%', height: 160,
             background: !imgLoaded ? 'linear-gradient(135deg, #f5f5f5, #e0e0e0)' : '#f0f0f0',
           }}>
             {product.image ? (
               <img src={product.image} alt={product.name} onLoad={() => setImgLoaded(true)}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: imgLoaded ? 1 : 0 }} />
+                className="product-detail-img" style={{ opacity: imgLoaded ? 1 : 0 }} />
             ) : (
               <div style={{ fontSize: '3rem', opacity: .3, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>🥪</div>
             )}
@@ -121,7 +122,7 @@ export default function ProductDetailModal({ product, open, onClose }: Props) {
           </div>
         </div>
 
-        <div style={{ overflow: 'auto', padding: '16px 20px 20px', flex: 1 }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <h2 style={{ fontSize: '1.15rem', fontWeight: 800 }}>{product.name}</h2>
@@ -203,6 +204,8 @@ export default function ProductDetailModal({ product, open, onClose }: Props) {
         <div style={{
           borderTop: '1px solid var(--border)', padding: '12px 20px',
           display: 'flex', alignItems: 'center', gap: 12,
+          flexShrink: 0, background: '#fff',
+          borderRadius: '0 0 16px 16px',
         }}>
           <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
             <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{ padding: '8px 12px', border: 'none', background: 'var(--bg)', cursor: 'pointer', fontSize: '1rem', fontWeight: 700 }}>−</button>
@@ -214,6 +217,7 @@ export default function ProductDetailModal({ product, open, onClose }: Props) {
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }

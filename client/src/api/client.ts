@@ -135,6 +135,12 @@ export async function getHighlightedProducts(): Promise<Product[]> {
   const { data } = await api.get('/products/highlighted')
   return data
 }
+export async function uploadProductImage(file: File): Promise<{ imageUrl: string }> {
+  const formData = new FormData()
+  formData.append('image', file)
+  const { data } = await api.post('/products/upload-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return data
+}
 
 // Orders
 export async function createOrder(order: {

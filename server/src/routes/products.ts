@@ -2,8 +2,32 @@ import { Router, Request, Response } from 'express'
 import { v4 as uuid } from 'uuid'
 import { dbAll, dbGet, dbRun } from '../database'
 import { authMiddleware } from '../middleware'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
 
 const router = Router()
+
+const uploadDir = path.join(__dirname, '..', '..', '..', '..', 'client', 'dist', 'uploads')
+fs.mkdirSync(uploadDir, { recursive: true })
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname)
+    cb(null, `product_${Date.now()}${ext}`)
+  }
+})
+const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (!ALLOWED_EXTS.includes(ext)) { cb(new Error('Tipo de arquivo não permitido. Use: jpg, png, gif, webp') as any); return }
+    if (!file.mimetype.startsWith('image/')) { cb(new Error('Apenas imagens são permitidas') as any); return }
+    cb(null, true)
+  }
+})
 
 function mapProduct(p: any) {
   return {
@@ -110,6 +134,15 @@ router.get('/highlighted', (_req: Request, res: Response) => {
     ORDER BY p.name
   `)
   res.json(products.map(p => ({ ...mapProduct(p), isHighlighted: true })))
+})
+
+router.post('/upload-image', authMiddleware, (req: Request, res: Response) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) { res.status(400).json({ error: err.message }); return }
+    if (!req.file) { res.status(400).json({ error: 'Nenhuma imagem enviada' }); return }
+    const imageUrl = `/uploads/${req.file.filename}`
+    res.json({ imageUrl })
+  })
 })
 
 export default router

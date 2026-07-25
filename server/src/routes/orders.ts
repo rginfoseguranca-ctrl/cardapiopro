@@ -60,11 +60,9 @@ function decrementInventory(items: any[]) {
   for (const item of items) {
     const recipeItems = dbAll('SELECT * FROM recipe_items WHERE product_id = ?', [item.productId])
     for (const recipeItem of recipeItems) {
+      if (!recipeItem.supply_id) continue
       const quantityNeeded = recipeItem.quantity * item.quantity
-      // Update supply quantity
       dbRun('UPDATE supplies SET quantity = quantity - ? WHERE id = ?', [quantityNeeded, recipeItem.supply_id])
-      // Create movement record
-      const supply = dbGet('SELECT name FROM supplies WHERE id = ?', [recipeItem.supply_id])
       dbRun(
         'INSERT INTO supply_movements (id, supply_id, type, quantity, description) VALUES (?, ?, ?, ?, ?)',
         ['mov_' + uuid(), recipeItem.supply_id, 'out', quantityNeeded, `Pedido ${item.productName} x${item.quantity}`]

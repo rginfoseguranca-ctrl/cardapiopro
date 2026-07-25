@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getAbandonedCarts, getCashbackSettings, setCashbackSettings, getCustomerSegmentation, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getInvoices, issueInvoice, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getBlogPosts, createBlogPost, deleteBlogPost, getLeads, getPartners, getStoreSettings, updateStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, type StoreSettings } from '../api/client'
+import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getAbandonedCarts, getCashbackSettings, setCashbackSettings, getCustomerSegmentation, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getInvoices, issueInvoice, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getBlogPosts, createBlogPost, deleteBlogPost, getLeads, getPartners, getStoreSettings, updateStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, uploadProductImage, getComplementGroups, createComplementGroup, createComplement, deleteComplementGroup, deleteComplement, type StoreSettings } from '../api/client'
 import { exportToCSV, ordersToCSV } from '../utils/export'
 import React, { useState, useRef, useEffect } from 'react'
 import DashboardSidebar from '../components/DashboardSidebar'
@@ -708,24 +708,114 @@ function ProdutosPanel() {
   const queryClient = useQueryClient()
   const { data: products, isLoading } = useQuery({ queryKey: ['allProducts'], queryFn: getAllProducts })
   const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
+  const { data: allCompGroups } = useQuery({ queryKey: ['allCompGroups'], queryFn: () => getComplementGroups() })
   const [showNew, setShowNew] = useState(false)
   const [newForm, setNewForm] = useState({ name: '', price: '', description: '', pricePromotional: '', image: '', categoryId: '', ingredients: '', isHighlighted: false })
+  const [newExtras, setNewExtras] = useState<{ name: string; price: number }[]>([])
+  const [newExtraName, setNewExtraName] = useState('')
+  const [newExtraPrice, setNewExtraPrice] = useState('')
+  const [showNewExtras, setShowNewExtras] = useState(false)
+  const [newImagePreview, setNewImagePreview] = useState('')
+  const [uploadingNew, setUploadingNew] = useState(false)
+  const newFileRef = useRef<HTMLInputElement>(null)
+
   const [editing, setEditing] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ name: '', price: 0, pricePromotional: '' as string | number, image: '', ingredients: '', isHighlighted: false, isAvailable: true })
+  const [editImagePreview, setEditImagePreview] = useState('')
+  const [uploadingEdit, setUploadingEdit] = useState(false)
+  const editFileRef = useRef<HTMLInputElement>(null)
+  const [editExtras, setEditExtras] = useState<{ groupId: string; groupName: string; items: { id: string; name: string; price: number }[] }[]>([])
+  const [editNewExtraName, setEditNewExtraName] = useState('')
+  const [editNewExtraPrice, setEditNewExtraPrice] = useState('')
+  const [showEditExtras, setShowEditExtras] = useState(false)
 
   const createMut = useMutation({
     mutationFn: createProduct,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['allProducts'] }); setShowNew(false); setNewForm({ name: '', price: '', description: '', pricePromotional: '', image: '', categoryId: '', ingredients: '', isHighlighted: false }) }
+    onSuccess: async (product) => {
+      if (newExtras.length > 0) {
+        const group = await createComplementGroup({ name: 'Adicionais', type: 'checkbox', min: 0, max: newExtras.length, productId: product.id, isRequired: false })
+        for (const extra of newExtras) {
+          await createComplement({ groupId: group.id, name: extra.name, price: extra.price })
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['allProducts'] })
+      queryClient.invalidateQueries({ queryKey: ['allCompGroups'] })
+      setShowNew(false)
+      setNewForm({ name: '', price: '', description: '', pricePromotional: '', image: '', categoryId: '', ingredients: '', isHighlighted: false })
+      setNewExtras([])
+      setNewImagePreview('')
+    }
   })
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => updateProduct(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['allProducts'] }); setEditing(null) }
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['allProducts'] }); queryClient.invalidateQueries({ queryKey: ['allCompGroups'] }); setEditing(null) }
+  })
+
+  const deleteExtraMut = useMutation({
+    mutationFn: deleteComplement,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['allCompGroups'] }) }
+  })
+
+  const addEditExtraMut = useMutation({
+    mutationFn: createComplement,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['allCompGroups'] }); setEditNewExtraName(''); setEditNewExtraPrice('') }
   })
 
   const startEdit = (p: any) => {
     setEditing(p.id)
     setEditForm({ name: p.name, price: p.price, pricePromotional: p.pricePromotional || '', image: p.image, ingredients: (p.ingredients || []).join(', '), isHighlighted: p.isHighlighted, isAvailable: p.isAvailable })
+    setEditImagePreview(p.image || '')
+    const productGroups = allCompGroups?.filter((g: any) => g.productId === p.id) || []
+    setEditExtras(productGroups.map((g: any) => ({ groupId: g.id, groupName: g.name, items: g.items || [] })))
+    setShowEditExtras(productGroups.length > 0)
+  }
+
+  const handleNewImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingNew(true)
+    try {
+      const { imageUrl } = await uploadProductImage(file)
+      setNewForm(f => ({ ...f, image: imageUrl }))
+      setNewImagePreview(imageUrl)
+    } catch { alert('Erro ao enviar imagem') }
+    setUploadingNew(false)
+    if (newFileRef.current) newFileRef.current.value = ''
+  }
+
+  const handleEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingEdit(true)
+    try {
+      const { imageUrl } = await uploadProductImage(file)
+      setEditForm(f => ({ ...f, image: imageUrl }))
+      setEditImagePreview(imageUrl)
+    } catch { alert('Erro ao enviar imagem') }
+    setUploadingEdit(false)
+    if (editFileRef.current) editFileRef.current.value = ''
+  }
+
+  const addNewExtra = () => {
+    if (!newExtraName.trim()) return
+    setNewExtras(prev => [...prev, { name: newExtraName.trim(), price: Number(newExtraPrice) || 0 }])
+    setNewExtraName('')
+    setNewExtraPrice('')
+  }
+
+  const removeNewExtra = (idx: number) => setNewExtras(prev => prev.filter((_, i) => i !== idx))
+
+  const extraInputStyle: React.CSSProperties = {
+    padding: '5px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: '.8rem', outline: 'none', background: '#fff',
+  }
+
+  const imagePreviewContainer: React.CSSProperties = {
+    width: 48, height: 48, borderRadius: 8, overflow: 'hidden', border: '1px solid #eee', flexShrink: 0,
+  }
+
+  const imagePreviewImg: React.CSSProperties = {
+    width: '100%', height: '100%', objectFit: 'cover',
   }
 
   return (
@@ -738,21 +828,57 @@ function ProdutosPanel() {
       </div>
 
       {showNew && (
-        <form onSubmit={e => { e.preventDefault(); if (newForm.name && newForm.price) createMut.mutate({ name: newForm.name, price: Number(newForm.price), description: newForm.description, pricePromotional: newForm.pricePromotional ? Number(newForm.pricePromotional) : undefined, image: newForm.image, categoryId: newForm.categoryId || undefined, isHighlighted: newForm.isHighlighted, ingredients: newForm.ingredients.split(',').map((s: string) => s.trim()) }) }}
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16, padding: 16, background: 'var(--bg)', borderRadius: 10 }}>
-          <input className="input" style={inputStyle} placeholder="Nome *" value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))} required />
-          <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço *" value={newForm.price} onChange={e => setNewForm(f => ({ ...f, price: e.target.value }))} required />
-          <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço Promo" value={newForm.pricePromotional} onChange={e => setNewForm(f => ({ ...f, pricePromotional: e.target.value }))} />
-          <input className="input" style={inputStyle} placeholder="Descrição" value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} />
-          <input className="input" style={inputStyle} placeholder="URL imagem" value={newForm.image} onChange={e => setNewForm(f => ({ ...f, image: e.target.value }))} />
-          <input className="input" style={inputStyle} placeholder="Ingredientes (vírgula)" value={newForm.ingredients} onChange={e => setNewForm(f => ({ ...f, ingredients: e.target.value }))} />
-          <select className="input" style={inputStyle} value={newForm.categoryId} onChange={e => setNewForm(f => ({ ...f, categoryId: e.target.value }))}>
-            <option value="">Sem categoria</option>
-            {categories?.map((c: any) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </select>
-          <label style={{ fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={newForm.isHighlighted} onChange={e => setNewForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
-          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Criar Produto</button>
-        </form>
+        <div style={{ marginBottom: 16, padding: 16, background: 'var(--bg)', borderRadius: 10 }}>
+          <form onSubmit={e => { e.preventDefault(); if (newForm.name && newForm.price) createMut.mutate({ name: newForm.name, price: Number(newForm.price), description: newForm.description, pricePromotional: newForm.pricePromotional ? Number(newForm.pricePromotional) : undefined, image: newForm.image, categoryId: newForm.categoryId || undefined, isHighlighted: newForm.isHighlighted, ingredients: newForm.ingredients.split(',').map((s: string) => s.trim()) }) }}
+            style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <input className="input" style={inputStyle} placeholder="Nome *" value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))} required />
+            <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço *" value={newForm.price} onChange={e => setNewForm(f => ({ ...f, price: e.target.value }))} required />
+            <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço Promo" value={newForm.pricePromotional} onChange={e => setNewForm(f => ({ ...f, pricePromotional: e.target.value }))} />
+            <input className="input" style={inputStyle} placeholder="Descrição" value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {newImagePreview && <div style={imagePreviewContainer}><img src={newImagePreview} style={imagePreviewImg} /></div>}
+              <input ref={newFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleNewImageUpload} />
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => newFileRef.current?.click()} disabled={uploadingNew}>
+                {uploadingNew ? '...' : '📷 Imagem'}
+              </button>
+              <input className="input" style={{ ...inputStyle, width: 120 }} placeholder="ou URL" value={newForm.image} onChange={e => { setNewForm(f => ({ ...f, image: e.target.value })); setNewImagePreview(e.target.value) }} />
+            </div>
+            <input className="input" style={inputStyle} placeholder="Ingredientes (vírgula)" value={newForm.ingredients} onChange={e => setNewForm(f => ({ ...f, ingredients: e.target.value }))} />
+            <select className="input" style={inputStyle} value={newForm.categoryId} onChange={e => setNewForm(f => ({ ...f, categoryId: e.target.value }))}>
+              <option value="">Sem categoria</option>
+              {categories?.map((c: any) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+            </select>
+            <label style={{ fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={newForm.isHighlighted} onChange={e => setNewForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Criar Produto</button>
+          </form>
+
+          <div style={{ marginTop: 12, borderTop: '1px solid #eee', paddingTop: 10 }}>
+            <button type="button" className="btn-ghost" style={{ fontSize: '.82rem', display: 'flex', alignItems: 'center', gap: 6, color: '#555' }} onClick={() => setShowNewExtras(!showNewExtras)}>
+              🧩 Adicionais {newExtras.length > 0 ? `(${newExtras.length})` : ''} <span style={{ fontSize: '.7rem' }}>{showNewExtras ? '▲' : '▼'}</span>
+            </button>
+            {showNewExtras && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input style={extraInputStyle} placeholder="Nome do adicional" value={newExtraName} onChange={e => setNewExtraName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addNewExtra() } }} />
+                  <input style={{ ...extraInputStyle, width: 80 }} type="number" step=".1" placeholder="Preço R$" value={newExtraPrice} onChange={e => setNewExtraPrice(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addNewExtra() } }} />
+                  <button type="button" className="btn btn-outline btn-sm" onClick={addNewExtra}>＋ Adicionar</button>
+                </div>
+                {newExtras.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {newExtras.map((extra, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.82rem', background: '#f8f9fa', borderRadius: 6, padding: '4px 10px' }}>
+                        <span>{extra.name}</span>
+                        {extra.price > 0 && <span style={{ color: 'var(--primary)', fontWeight: 600 }}>+R$ {extra.price.toFixed(2)}</span>}
+                        <button type="button" className="btn-ghost" style={{ color: 'var(--danger)', fontSize: '.75rem', padding: 0, marginLeft: 'auto' }} onClick={() => removeNewExtra(idx)}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p style={{ fontSize: '.72rem', color: '#999', marginTop: 6 }}>Os adicionais serão salvos automaticamente após criar o produto.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {isLoading ? <p>Carregando...</p> : (
@@ -760,16 +886,57 @@ function ProdutosPanel() {
           {products?.map((p: any) => (
             <div key={p.id} className="dashboard-card" style={{ padding: 14 }}>
               {editing === p.id ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  <input style={inputStyle} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                  <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: Number(e.target.value) }))} />
-                  <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" placeholder="Promo" value={editForm.pricePromotional} onChange={e => setEditForm(f => ({ ...f, pricePromotional: e.target.value }))} />
-                  <input style={inputStyle} value={editForm.image} onChange={e => setEditForm(f => ({ ...f, image: e.target.value }))} placeholder="URL imagem" />
-                  <input style={inputStyle} value={editForm.ingredients} onChange={e => setEditForm(f => ({ ...f, ingredients: e.target.value }))} placeholder="Ingredientes (vírgula)" />
-                  <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isHighlighted} onChange={e => setEditForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
-                  <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isAvailable} onChange={e => setEditForm(f => ({ ...f, isAvailable: e.target.checked }))} /> Disponível</label>
-                  <button className="btn btn-primary btn-sm" onClick={() => updateMut.mutate({ id: p.id, data: { ...editForm, ingredients: editForm.ingredients.split(',').map((s: string) => s.trim()), pricePromotional: editForm.pricePromotional || null } })}>Salvar</button>
-                  <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancelar</button>
+                <div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    <input style={inputStyle} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                    <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: Number(e.target.value) }))} />
+                    <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" placeholder="Promo" value={editForm.pricePromotional} onChange={e => setEditForm(f => ({ ...f, pricePromotional: e.target.value }))} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {editImagePreview && <div style={imagePreviewContainer}><img src={editImagePreview} style={imagePreviewImg} /></div>}
+                      <input ref={editFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEditImageUpload} />
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => editFileRef.current?.click()} disabled={uploadingEdit}>
+                        {uploadingEdit ? '...' : '📷'}
+                      </button>
+                      <input style={{ ...inputStyle, width: 110 }} value={editForm.image} onChange={e => { setEditForm(f => ({ ...f, image: e.target.value })); setEditImagePreview(e.target.value) }} placeholder="URL imagem" />
+                    </div>
+                    <input style={inputStyle} value={editForm.ingredients} onChange={e => setEditForm(f => ({ ...f, ingredients: e.target.value }))} placeholder="Ingredientes (vírgula)" />
+                    <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isHighlighted} onChange={e => setEditForm(f => ({ ...f, isHighlighted: e.target.checked }))} /> Destaque</label>
+                    <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isAvailable} onChange={e => setEditForm(f => ({ ...f, isAvailable: e.target.checked }))} /> Disponível</label>
+                    <button className="btn btn-primary btn-sm" onClick={() => updateMut.mutate({ id: p.id, data: { ...editForm, ingredients: editForm.ingredients.split(',').map((s: string) => s.trim()), pricePromotional: editForm.pricePromotional || null } })}>Salvar</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancelar</button>
+                  </div>
+
+                  <div style={{ marginTop: 10, borderTop: '1px solid #eee', paddingTop: 8 }}>
+                    <button type="button" className="btn-ghost" style={{ fontSize: '.82rem', display: 'flex', alignItems: 'center', gap: 6, color: '#555' }} onClick={() => setShowEditExtras(!showEditExtras)}>
+                      🧩 Adicionais {editExtras.length > 0 ? `(${editExtras.reduce((s, g) => s + g.items.length, 0)} itens)` : ''} <span style={{ fontSize: '.7rem' }}>{showEditExtras ? '▲' : '▼'}</span>
+                    </button>
+                    {showEditExtras && (
+                      <div style={{ marginTop: 8 }}>
+                        {editExtras.map((group) => (
+                          <div key={group.groupId} style={{ marginBottom: 8 }}>
+                            <p style={{ fontSize: '.78rem', fontWeight: 600, color: '#666', marginBottom: 4 }}>{group.groupName}</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              {group.items.map((item) => (
+                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.82rem', background: '#f8f9fa', borderRadius: 6, padding: '4px 10px' }}>
+                                  <span>{item.name}</span>
+                                  {item.price > 0 && <span style={{ color: 'var(--primary)', fontWeight: 600 }}>+R$ {item.price.toFixed(2)}</span>}
+                                  <button className="btn-ghost" style={{ color: 'var(--danger)', fontSize: '.75rem', padding: 0, marginLeft: 'auto' }} onClick={() => { deleteExtraMut.mutate(item.id); setEditExtras(prev => prev.map(g => g.groupId === group.groupId ? { ...g, items: g.items.filter(i => i.id !== item.id) } : g)) }}>✕</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        {editExtras.length === 0 && <p style={{ fontSize: '.78rem', color: '#999' }}>Nenhum adicional</p>}
+
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                          <input style={extraInputStyle} placeholder="Novo adicional" value={editNewExtraName} onChange={e => setEditNewExtraName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (editNewExtraName.trim() && editExtras.length > 0) addEditExtraMut.mutate({ groupId: editExtras[0].groupId, name: editNewExtraName.trim(), price: Number(editNewExtraPrice) || 0 }) } }} />
+                          <input style={{ ...extraInputStyle, width: 80 }} type="number" step=".1" placeholder="Preço R$" value={editNewExtraPrice} onChange={e => setEditNewExtraPrice(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (editNewExtraName.trim() && editExtras.length > 0) addEditExtraMut.mutate({ groupId: editExtras[0].groupId, name: editNewExtraName.trim(), price: Number(editNewExtraPrice) || 0 }) } }} />
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => { if (editNewExtraName.trim() && editExtras.length > 0) addEditExtraMut.mutate({ groupId: editExtras[0].groupId, name: editNewExtraName.trim(), price: Number(editNewExtraPrice) || 0 }) }}>＋</button>
+                        </div>
+                        <p style={{ fontSize: '.72rem', color: '#999', marginTop: 4 }}>Itens são adicionados ao primeiro grupo de complementos do produto.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="flex justify-between items-center">
@@ -781,6 +948,7 @@ function ProdutosPanel() {
                       {p.pricePromotional && <span className="text-sm text-success ml-sm">R$ {p.pricePromotional.toFixed(2)}</span>}
                       {p.isHighlighted && <span className="badge badge-primary ml-sm">Destaque</span>}
                       {!p.isAvailable && <span className="badge badge-danger ml-sm">Indisponível</span>}
+                      {allCompGroups?.filter((g: any) => g.productId === p.id).length > 0 && <span className="badge ml-sm" style={{ background: '#f0f0f0', color: '#666' }}>🧩 {allCompGroups.filter((g: any) => g.productId === p.id).reduce((s: number, g: any) => s + (g.items?.length || 0), 0)} extras</span>}
                     </div>
                   </div>
                   <button className="btn btn-outline btn-sm" onClick={() => startEdit(p)}>✏️ Editar</button>

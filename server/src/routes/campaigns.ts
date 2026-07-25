@@ -1,14 +1,15 @@
 import { Router, Request, Response } from 'express'
 import { dbAll, dbGet, dbRun } from '../database'
+import { authMiddleware } from '../middleware'
 
 const router = Router()
 
-router.get('/', (_req: Request, res: Response) => {
+router.get('/', authMiddleware, (_req: Request, res: Response) => {
   const campaigns = dbAll('SELECT * FROM campaigns ORDER BY created_at DESC')
   res.json(campaigns.map((c: any) => ({ ...c, isActive: !!c.is_active, filters: JSON.parse(c.filters || '{}') })))
 })
 
-router.post('/', (req: Request, res: Response) => {
+router.post('/', authMiddleware, (req: Request, res: Response) => {
   const { name, message, filters } = req.body
   if (!name || !message) { res.status(400).json({ error: 'Dados obrigatórios faltando' }); return }
   const id = 'cmp_' + Date.now() + Math.random().toString(36).slice(2, 6)
@@ -18,7 +19,7 @@ router.post('/', (req: Request, res: Response) => {
   res.status(201).json({ ...campaign, filters: JSON.parse(campaign.filters || '{}') })
 })
 
-router.post('/:id/send', (req: Request, res: Response) => {
+router.post('/:id/send', authMiddleware, (req: Request, res: Response) => {
   const campaign = dbGet('SELECT * FROM campaigns WHERE id = ?', [req.params.id])
   if (!campaign) { res.status(404).json({ error: 'Campanha não encontrada' }); return }
 
@@ -46,7 +47,7 @@ router.post('/:id/send', (req: Request, res: Response) => {
   res.json({ success: true, sentCount, customers: customers.map((c: any) => ({ name: c.name, phone: c.phone })) })
 })
 
-router.get('/segmentation/stats', (_req: Request, res: Response) => {
+router.get('/segmentation/stats', authMiddleware, (_req: Request, res: Response) => {
   const total = dbGet('SELECT COUNT(*) as count FROM customers')
   const active30 = dbGet("SELECT COUNT(*) as count FROM customers WHERE last_order_at >= datetime('now', '-30 days')")
   const highValue = dbGet('SELECT COUNT(*) as count FROM customers WHERE total_spent >= 200')
@@ -60,7 +61,7 @@ router.get('/segmentation/stats', (_req: Request, res: Response) => {
   })
 })
 
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, (req: Request, res: Response) => {
   dbRun('DELETE FROM campaigns WHERE id = ?', [req.params.id])
   res.json({ success: true })
 })
