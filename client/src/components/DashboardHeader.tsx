@@ -1,19 +1,43 @@
 import { useAuth } from '../hooks/useAuth'
 
 const tabLabels: Record<string, string> = {
-  dashboard: 'Painel', orders: 'Pedidos', produtos: 'Cardápio', crm: 'Clientes',
+  dashboard: 'Painel', orders: 'Gestão de Pedidos', produtos: 'Produtos', crm: 'Clientes',
   caixa: 'Caixa', fiado: 'Fiado', notas: 'NF-e',
   estoque: 'Estoque', impressoras: 'Impressoras', pdv: 'PDV', rotas: 'Rotas',
   coupons: 'Cupons', loyalty: 'Fidelidade', cashback: 'Cashback',
   campaigns: 'Campanhas', abandoned: 'Carrinhos',
-  store: 'Config. Loja', tables: 'Mesas', integrations: 'Integrações',
+  store: 'Config. Loja', tables: 'Mesas e Comandas', integrations: 'Integrações',
   blog: 'Blog', partners: 'Parceiros', leads: 'Leads',
+  'empresa-avisos': 'Avisos', 'empresa-perfil': 'Perfil', 'empresa-horarios': 'Horários',
+  'empresa-pagamentos': 'Formas de Pagamento', 'empresa-campos': 'Campos Personalizados',
+  'opcoes': 'Opções', 'filtros-avancados': 'Filtros Avançados', 'estoque-simples': 'Estoque Simples',
+  'combos': 'Combos', 'fiado-dividas': 'Controle de Dívidas', 'fiado-visao-geral': 'Visão Geral',
+  'config-geral': 'Configurações Gerais', 'personalizar-site': 'Personalizar Site',
+  'config-impressao': 'Impressão', 'config-mesas': 'Mesas/Comandas', 'agendamento': 'Agendamento',
+  'usuarios': 'Usuários', 'assinaturas': 'Assinaturas', 'multiloja': 'Link de Multilojas',
+  'historico': 'Histórico de Pedidos', 'avaliacoes': 'Avaliações',
+  'segmentacao': 'Segmentação de Clientes', 'site-analytics': 'Site Analytics',
+  'areas-entrega': 'Área de Entrega', 'entregadores': 'Entregadores',
+  'financeiro-dashboard': 'Dashboard Financeiro', 'financeiro-lancamentos': 'Lançamentos',
+  'financeiro-fluxo': 'Fluxo de Caixa', 'estoque-avancado': 'Estoque Avançado',
+  'desempenho-vendas': 'Vendas', 'desempenho-clientes': 'Clientes', 'desempenho-rfv': 'Base de Clientes (RFV)',
+  'desempenho-catalogo': 'Catálogo', 'desempenho-entregas': 'Entregas', 'desempenho-descontos': 'Descontos',
+  'desempenho-cancelamentos': 'Cancelamentos', 'desempenho-visao-geral': 'Visão Geral',
 }
 
 const sectionParents: Record<string, string> = {
-  caixa: 'Financeiro', fiado: 'Financeiro', notas: 'Financeiro',
-  coupons: 'Marketing', loyalty: 'Marketing', cashback: 'Marketing',
-  campaigns: 'Marketing', abandoned: 'Marketing',
+  'fiado-dividas': 'Fiado', 'fiado-visao-geral': 'Fiado',
+  'config-geral': 'Configurações', 'personalizar-site': 'Configurações',
+  'config-impressao': 'Configurações', 'config-mesas': 'Configurações',
+  'agendamento': 'Configurações', 'integrations': 'Configurações',
+  'usuarios': 'Administrativo', 'assinaturas': 'Administrativo', 'multiloja': 'Administrativo',
+  'empresa-avisos': 'Minha Empresa', 'empresa-perfil': 'Minha Empresa', 'empresa-horarios': 'Minha Empresa',
+  'empresa-pagamentos': 'Minha Empresa', 'empresa-campos': 'Minha Empresa',
+  'produtos': 'Catálogo', 'complements': 'Catálogo', 'opcoes': 'Catálogo', 'filtros-avancados': 'Catálogo',
+  'estoque-simples': 'Catálogo', 'combos': 'Catálogo',
+  'areas-entrega': 'Delivery', 'entregadores': 'Delivery',
+  'segmentacao': 'Marketing', 'site-analytics': 'Marketing', 'campaigns': 'Marketing',
+  'loyalty': 'Fidelidade', 'cashback': 'Fidelidade',
 }
 
 export default function DashboardHeader({

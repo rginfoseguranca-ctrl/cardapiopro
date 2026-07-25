@@ -11,7 +11,7 @@ interface MenuItem {
 const menuSections: { title?: string; items: MenuItem[] }[] = [
   {
     items: [
-      { key: 'orders', icon: '📋', label: 'Pedidos', badge: 0 },
+      { key: 'orders', icon: '📋', label: 'Gestão de Pedidos', badge: 0 },
       { key: 'tables', icon: '🪑', label: 'Mesas e Comandas' },
       { key: 'kds', icon: '🍳', label: 'KDS' },
       { key: 'caixa', icon: '💰', label: 'Caixa' },
@@ -45,22 +45,25 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
           { key: 'empresa-perfil', label: 'Perfil' },
           { key: 'empresa-horarios', label: 'Horários' },
           { key: 'empresa-pagamentos', label: 'Formas de Pagamento' },
+          { key: 'empresa-avisos', label: 'Avisos' },
           { key: 'empresa-campos', label: 'Campos Personalizados' },
         ]
       },
       {
         key: 'catalogo', icon: '🍔', label: 'Catálogo',
         children: [
-          { key: 'produtos', label: 'Produtos/Categorias' },
+          { key: 'produtos', label: 'Produtos' },
           { key: 'complements', label: 'Complementos' },
-          { key: 'combos', label: 'Combos' },
+          { key: 'opcoes', label: 'Opções' },
+          { key: 'filtros-avancados', label: 'Filtros Avançados' },
           { key: 'estoque-simples', label: 'Estoque Simples' },
+          { key: 'combos', label: 'Combos' },
         ]
       },
       {
         key: 'delivery', icon: '🚚', label: 'Delivery',
         children: [
-          { key: 'areas-entrega', label: 'Áreas de Entrega' },
+          { key: 'areas-entrega', label: 'Área de Entrega' },
           { key: 'entregadores', label: 'Entregadores' },
         ]
       },
@@ -71,7 +74,13 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
     items: [
       { key: 'crm', icon: '👥', label: 'Clientes' },
       { key: 'avaliacoes', icon: '⭐', label: 'Avaliações' },
-      { key: 'fiado', icon: '💸', label: 'Fiado' },
+      {
+        key: 'fiado', icon: '💸', label: 'Fiado',
+        children: [
+          { key: 'fiado-dividas', label: 'Controle de Dívidas' },
+          { key: 'fiado-visao-geral', label: 'Visão Geral' },
+        ]
+      },
     ]
   },
   {
@@ -82,15 +91,7 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
         children: [
           { key: 'usuarios', label: 'Usuários' },
           { key: 'assinaturas', label: 'Assinaturas' },
-          { key: 'multiloja', label: 'Multi-Lojas' },
-        ]
-      },
-      {
-        key: 'impressoras', icon: '🖨️', label: 'Impressora',
-        children: [
-          { key: 'impressoras-vincular', label: 'Vincular Impressora' },
-          { key: 'impressoras-setores', label: 'Setores de Impressão' },
-          { key: 'impressoras-config', label: 'Configurações' },
+          { key: 'multiloja', label: 'Link de Multilojas' },
         ]
       },
       {
@@ -98,7 +99,9 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
         children: [
           { key: 'config-geral', label: 'Configurações Gerais' },
           { key: 'personalizar-site', label: 'Personalizar Site' },
+          { key: 'config-impressao', label: 'Impressão' },
           { key: 'agendamento', label: 'Agendamento' },
+          { key: 'config-mesas', label: 'Mesas/Comandas' },
           { key: 'integrations', label: 'Integrações' },
         ]
       },
@@ -116,7 +119,7 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
         ]
       },
       { key: 'chatbot', icon: '🤖', label: 'Chatbot' },
-      { key: 'coupons', icon: '🎫', label: 'Cupons e Descontos' },
+      { key: 'coupons', icon: '🎫', label: 'Cupons de Desconto' },
       {
         key: 'fidelidade', icon: '🎯', label: 'Fidelidade',
         children: [

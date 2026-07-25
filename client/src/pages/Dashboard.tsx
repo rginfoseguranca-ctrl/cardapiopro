@@ -33,6 +33,9 @@ import ConfigGeral from './ConfigGeral'
 import UsuariosPage from './Usuarios'
 import AssinaturasPage from './Assinaturas'
 import ImpressoraConfig from './ImpressoraConfig'
+import AvisosPanel from './AvisosPanel'
+import OpcoesPanel from './OpcoesPanel'
+import FiltrosAvancadosPanel from './FiltrosAvancadosPanel'
 
 function SalesChart({ data }: { data: { day: string; count: number; revenue: number }[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -233,6 +236,7 @@ export default function Dashboard() {
         )}
 
         {tab === 'tables' && <TablesPanel tables={tables} createTableMut={createTableMut} deleteTableMut={deleteTableMut} newTableNum={newTableNum} setNewTableNum={setNewTableNum} />}
+        {tab === 'config-mesas' && <TablesPanel tables={tables} createTableMut={createTableMut} deleteTableMut={deleteTableMut} newTableNum={newTableNum} setNewTableNum={setNewTableNum} />}
         {tab === 'coupons' && <CouponsPanel coupons={coupons} deleteCouponMut={deleteCouponMut} />}
         {tab === 'loyalty' && <LoyaltyPanel rewards={rewards} />}
         {tab === 'campaigns' && <CampaignsPanel campaigns={campaigns} />}
@@ -247,6 +251,8 @@ export default function Dashboard() {
         {tab === 'pdv' && <PDVPanel />}
         {tab === 'produtos' && <ProdutosPanel />}
         {tab === 'complements' && <ComplementsPanel />}
+        {tab === 'opcoes' && <OpcoesPanel />}
+        {tab === 'filtros-avancados' && <FiltrosAvancadosPanel />}
         {tab === 'combos' && <ProdutosPanel />}
         {tab === 'estoque-simples' && <EstoquePanel />}
         {tab === 'caixa' && <CaixaPanel />}
@@ -254,7 +260,7 @@ export default function Dashboard() {
         {tab === 'notas' && <NotasPanel />}
         {tab === 'rotas' && <RotasPanel />}
         {tab === 'impressoras' && <ImpressorasPanel />}
-        {tab === 'fiado' && <FiadoPanel />}
+        {tab === 'fiado' || tab === 'fiado-dividas' || tab === 'fiado-visao-geral' ? <FiadoPanel subTab={tab === 'fiado-visao-geral' ? 'visao-geral' : 'dividas'} /> : null}
         {tab === 'blog' && <BlogPanel posts={blogPosts} />}
         {tab === 'leads' && <LeadsPanel leads={leads} />}
         {tab === 'partners' && <PartnersPanel partners={partners} />}
@@ -271,6 +277,7 @@ export default function Dashboard() {
         {tab === 'desempenho-visao-geral' && <DesempenhoVisaoGeral />}
         {tab === 'historico' && <HistoricoPedidos />}
         {tab === 'empresa-perfil' || tab === 'empresa-horarios' || tab === 'empresa-pagamentos' || tab === 'empresa-campos' ? <MinhaEmpresa /> : null}
+        {tab === 'empresa-avisos' && <AvisosPanel />}
         {tab === 'avaliacoes' && <Avaliacoes />}
         {tab === 'chatbot' && <ChatbotPage />}
         {tab === 'site-analytics' && <SiteAnalyticsPage />}
@@ -281,7 +288,7 @@ export default function Dashboard() {
         {tab === 'config-geral' && <ConfigGeral />}
         {tab === 'usuarios' && <UsuariosPage />}
         {tab === 'assinaturas' && <AssinaturasPage />}
-        {tab === 'impressoras-vincular' || tab === 'impressoras-setores' || tab === 'impressoras-config' ? <ImpressoraConfig /> : null}
+        {tab === 'impressoras-vincular' || tab === 'impressoras-setores' || tab === 'impressoras-config' || tab === 'config-impressao' ? <ImpressoraConfig /> : null}
         {tab === 'financeiro-lancamentos' || tab === 'financeiro-fluxo' ? <FinancePanel /> : null}
         {tab === 'segmentacao' && <CRMPanel segmentation={segmentation} />}
       </main>
@@ -1310,7 +1317,7 @@ function ImpressorasPanel() {
   )
 }
 
-function FiadoPanel() {
+function FiadoPanel({ subTab = 'dividas' }: { subTab?: string }) {
   const queryClient = useQueryClient()
   const { data } = useQuery({ queryKey: ['fiado'], queryFn: getFiado })
   const [showForm, setShowForm] = useState(false)
@@ -1322,6 +1329,45 @@ function FiadoPanel() {
   const payMut = useMutation({ mutationFn: (id: string) => payFiado(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fiado'] }) })
   const debts = data?.debts || []
   const totalFiado = debts.reduce((s: number, f: any) => s + (f.status === 'pending' ? Number(f.amount) - Number(f.paid_amount || 0) : 0), 0)
+  const pendingDebts = debts.filter((f: any) => f.status === 'pending')
+  const paidDebts = debts.filter((f: any) => f.status === 'paid')
+
+  if (subTab === 'visao-geral') {
+    return (
+      <div className="panel-fadeIn" style={{ maxWidth: 800, margin: '0 auto' }}>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: 16 }}>📊 Visão Geral - Fiado</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+          <div className="dashboard-card" style={{ padding: 16, textAlign: 'center' }}>
+            <p className="text-xs text-muted">Total em Aberto</p>
+            <p style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--danger)' }}>R$ {totalFiado.toFixed(2)}</p>
+          </div>
+          <div className="dashboard-card" style={{ padding: 16, textAlign: 'center' }}>
+            <p className="text-xs text-muted">Pendentes</p>
+            <p style={{ fontSize: '1.4rem', fontWeight: 700 }}>{pendingDebts.length}</p>
+          </div>
+          <div className="dashboard-card" style={{ padding: 16, textAlign: 'center' }}>
+            <p className="text-xs text-muted">Pagos</p>
+            <p style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--success)' }}>{paidDebts.length}</p>
+          </div>
+        </div>
+        <div className="dashboard-card" style={{ padding: 16 }}>
+          <h3 className="font-semibold mb-sm">Últimas transações</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {debts.slice(0, 10).map((f: any) => (
+              <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <div>
+                  <span className="font-semibold text-sm">{f.customer_name}</span>
+                  <span className="text-xs text-muted ml-sm">R$ {Number(f.amount).toFixed(2)}</span>
+                </div>
+                <span className={`badge ${f.status === 'pending' ? 'badge-danger' : 'badge-success'}`}>{f.status === 'paid' ? 'Pago' : 'Pendente'}</span>
+              </div>
+            ))}
+            {debts.length === 0 && <p className="text-muted text-sm">Nenhum registro</p>}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="panel-fadeIn">
