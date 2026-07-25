@@ -15,28 +15,6 @@ const features = [
   { icon: '📈', title: 'CRM', desc: 'Histórico e segmentação de clientes' },
 ]
 
-const plans = [
-  {
-    name: 'Start',
-    price: '49,99',
-    desc: 'Para quem começa no digital',
-    features: ['Cardápio Digital', 'Pedidos WhatsApp', 'Dashboard', 'Clientes', 'Cupons'],
-  },
-  {
-    name: 'Profissional',
-    price: '79,99',
-    desc: 'Gestão completa do restaurante',
-    features: ['Tudo do Start', 'Delivery', 'Mesas & KDS', 'PDV', 'Estoque'],
-    popular: true,
-  },
-  {
-    name: 'Premium',
-    price: '149,99',
-    desc: 'Para quem quer crescer forte',
-    features: ['Tudo do Profissional', 'Chatbot IA', 'CRM', 'Cashback', 'Suporte VIP'],
-  },
-]
-
 const testimonials = [
   { name: 'Maria Silva', store: 'Lanchonete Sabor', text: 'Aumentei 40% meus pedidos depois que implementei o CardápioPro. Muito fácil de usar!' },
   { name: 'João Santos', store: 'Pizza Express', text: 'O módulo de mesas e KDS revolucionou meu restaurante. Recomendo!' },

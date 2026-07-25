@@ -8,8 +8,6 @@ export default function About() {
   const storeName = s.storeName || 'Cardápio'
   const storeIcon = s.storeIcon || '🍔'
   const whatsapp = s.whatsapp || ''
-  const address = s.address || ''
-  const openingHours = s.openingHours ? JSON.parse(s.openingHours) : null
 
   return (
     <div className="container" style={{ padding: '32px 0' }}>
@@ -55,10 +53,9 @@ export default function About() {
         <section>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 12 }}>📍 Informações</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '.95rem' }}>
-            {address && <p>📍 {address}</p>}
             {whatsapp && <p>📱 WhatsApp: {whatsapp}</p>}
             {s.footerText && <p>{s.footerText}</p>}
-            {!address && !whatsapp && <p style={{ color: 'var(--text-light)' }}>Dados não configurados pelo estabelecimento.</p>}
+            {!whatsapp && <p style={{ color: 'var(--text-light)' }}>Dados não configurados pelo estabelecimento.</p>}
           </div>
         </section>
       </div>
