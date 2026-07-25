@@ -13,7 +13,7 @@ interface ChecklistItem {
 export default function OnboardingChecklist() {
   const [dismissed, setDismissed] = useState(() => localStorage.getItem('onboarding_dismissed') === 'true')
 
-  const { data: store } = useQuery({ queryKey: ['storeSettings'], queryFn: async () => { const r = await api.get('/store/settings'); return r.data } })
+  const { data: store } = useQuery({ queryKey: ['storeSettings'], queryFn: async () => { const r = await api.get('/store'); return r.data } })
   const { data: products } = useQuery({ queryKey: ['productsAll'], queryFn: async () => { const r = await api.get('/products/all'); return r.data } })
 
   if (dismissed) return null

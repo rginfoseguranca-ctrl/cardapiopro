@@ -80,15 +80,29 @@ router.post('/', authMiddleware, planLimitMiddleware('products'), (req: Request,
 })
 
 router.put('/:id', authMiddleware, (req: Request, res: Response) => {
-  const { name, description, price, pricePromotional, image, categoryId, isHighlighted, isAvailable, ingredients } = req.body
-  dbRun(`UPDATE products SET
-    name = ?, description = ?, price = ?, price_promotional = ?, image = ?,
-    category_id = ?, is_highlighted = ?, is_available = ?, ingredients = ?,
-    updated_at = datetime('now')
-    WHERE id = ?`,
-    [name, description || '', price, pricePromotional || null, image || '',
-      categoryId, isHighlighted ? 1 : 0, isAvailable !== false ? 1 : 0,
-      JSON.stringify(ingredients || []), req.params.id])
+  const allowed: Record<string, [string, (v: any) => any]> = {
+    name: ['name', (v: any) => v],
+    description: ['description', (v: any) => v || ''],
+    price: ['price', (v: any) => v],
+    pricePromotional: ['price_promotional', (v: any) => v || null],
+    image: ['image', (v: any) => v || ''],
+    categoryId: ['category_id', (v: any) => v],
+    isHighlighted: ['is_highlighted', (v: any) => v ? 1 : 0],
+    isAvailable: ['is_available', (v: any) => v !== false ? 1 : 0],
+    ingredients: ['ingredients', (v: any) => JSON.stringify(v || [])],
+  }
+  const fields: string[] = []
+  const values: any[] = []
+  for (const [key, [col, transform]] of Object.entries(allowed)) {
+    if (req.body[key] !== undefined) {
+      fields.push(`${col} = ?`)
+      values.push(transform(req.body[key]))
+    }
+  }
+  if (fields.length === 0) { res.status(400).json({ error: 'Nenhum campo para atualizar' }); return }
+  fields.push("updated_at = datetime('now')")
+  values.push(req.params.id)
+  dbRun(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, values)
   const product = dbGet(`SELECT p.*, c.name as category_name, c.icon as category_icon FROM products p JOIN categories c ON c.id = p.category_id WHERE p.id = ?`, [req.params.id])
   if (product) res.json(mapProduct(product))
   else res.status(404).json({ error: 'Produto não encontrado' })

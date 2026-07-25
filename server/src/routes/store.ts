@@ -71,6 +71,7 @@ router.get('/', (req: Request, res: Response) => {
       paymentPixKey: '', paymentPixName: '', paymentCardInfo: '', paymentCashInfo: '',
       footerText: '', schedulingEnabled: false,
       logoUrl: '', whatsapp: '', openingHours: {},
+      deliveryFee: 0, freeDeliveryFrom: 0, avisos: [],
     })
     return
   }
@@ -92,6 +93,7 @@ router.get('/', (req: Request, res: Response) => {
     openingHours,
     deliveryFee: settings.delivery_fee || 0,
     freeDeliveryFrom: settings.free_delivery_from || 0,
+    avisos: (() => { try { return JSON.parse(settings.avisos || '[]') } catch { return [] } })(),
   })
 })
 
@@ -104,13 +106,14 @@ router.put('/', authMiddleware, (req: Request, res: Response) => {
     paymentCashInfo: ['payment_cash_info'], footerText: ['footer_text'],
     whatsapp: ['whatsapp'], deliveryFee: ['delivery_fee'], freeDeliveryFrom: ['free_delivery_from'],
     logoUrl: ['logo_url'],
+    avisos: ['avisos', (v: any) => JSON.stringify(v)],
   }
   const fields: string[] = []
   const values: any[] = []
-  for (const [key, [col]] of Object.entries(mapping)) {
+  for (const [key, [col, transform]] of Object.entries(mapping)) {
     if (req.body[key] !== undefined) {
       fields.push(`${col} = ?`)
-      values.push(req.body[key])
+      values.push(transform ? transform(req.body[key]) : req.body[key])
     }
   }
   if (req.body.schedulingEnabled !== undefined) {

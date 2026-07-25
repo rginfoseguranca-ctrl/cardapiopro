@@ -427,6 +427,7 @@ export interface StoreSettings {
   openingHours: Record<string, { open: string; close: string; closed: boolean }>
   deliveryFee: number
   freeDeliveryFrom: number
+  avisos?: { id: string; title: string; description: string; imageUrl: string; active: boolean }[]
 }
 export async function getStoreSettings(): Promise<StoreSettings> {
   const { data } = await api.get('/store')
