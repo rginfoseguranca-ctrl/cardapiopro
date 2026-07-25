@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { v4 as uuid } from 'uuid'
 import { dbAll, dbGet, dbRun } from '../database'
-import { authMiddleware } from '../middleware'
+import { authMiddleware, planLimitMiddleware } from '../middleware'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
@@ -67,7 +67,7 @@ router.get('/all', (_req: Request, res: Response) => {
   res.json(products.map(mapProduct))
 })
 
-router.post('/', authMiddleware, (req: Request, res: Response) => {
+router.post('/', authMiddleware, planLimitMiddleware('products'), (req: Request, res: Response) => {
   const { name, description, price, pricePromotional, image, categoryId, isHighlighted, isAvailable, ingredients } = req.body
   if (!name) { res.status(400).json({ error: 'Nome é obrigatório' }); return }
   if (price === undefined) { res.status(400).json({ error: 'Preço é obrigatório' }); return }

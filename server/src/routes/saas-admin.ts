@@ -71,6 +71,47 @@ router.delete('/stores/:id', authMiddleware, adminMiddleware, (req: Request, res
   res.json({ success: true })
 })
 
+router.get('/analytics', authMiddleware, adminMiddleware, (_req: Request, res: Response) => {
+  const revenueByDay = dbAll(`
+    SELECT DATE(created_at) as date, SUM(total) as revenue, COUNT(*) as orders
+    FROM orders WHERE status != 'canceled' AND created_at >= DATE('now', '-30 days')
+    GROUP BY DATE(created_at) ORDER BY date
+  `)
+
+  const ordersByStatus = dbAll(`
+    SELECT status, COUNT(*) as count FROM orders GROUP BY status
+  `)
+
+  const topStores = dbAll(`
+    SELECT st.name, st.slug, SUM(o.total) as revenue, COUNT(o.id) as orders
+    FROM orders o JOIN stores st ON st.id = o.store_id
+    WHERE o.status != 'canceled'
+    GROUP BY o.store_id ORDER BY revenue DESC LIMIT 5
+  `)
+
+  const deliveryVsPickup = dbAll(`
+    SELECT COALESCE(delivery_type, 'balcao') as type, COUNT(*) as count
+    FROM orders WHERE status != 'canceled' GROUP BY delivery_type
+  `)
+
+  const monthlyRevenue = dbAll(`
+    SELECT strftime('%Y-%m', created_at) as month, SUM(total) as revenue
+    FROM orders WHERE status != 'canceled'
+    GROUP BY month ORDER BY month DESC LIMIT 6
+  `)
+
+  const storeLimits = dbAll(`
+    SELECT st.name, st.slug,
+      (SELECT plan FROM subscriptions WHERE store_id = st.id ORDER BY created_at DESC LIMIT 1) as plan,
+      (SELECT COUNT(*) FROM products WHERE store_id = st.id) as product_count,
+      (SELECT COUNT(*) FROM orders WHERE store_id = st.id AND created_at >= DATE('now', 'start of month')) as month_orders,
+      (SELECT COUNT(*) FROM users WHERE store_id = st.id) as user_count
+    FROM stores st WHERE st.is_active = 1
+  `)
+
+  res.json({ revenueByDay, ordersByStatus, topStores, deliveryVsPickup, monthlyRevenue, storeLimits })
+})
+
 router.get('/subscriptions', authMiddleware, adminMiddleware, (_req: Request, res: Response) => {
   const subs = dbAll(`
     SELECT s.*, st.name as store_name, st.slug as store_slug

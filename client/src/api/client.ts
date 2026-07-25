@@ -663,6 +663,43 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return data
 }
 
+// ─── SaaS Admin ───
+export interface SaaSStats {
+  stores: { total: number }
+  users: { total: number }
+  orders: { total: number; recent: any[] }
+  subscriptions: { active: number; trialing: number; canceled: number }
+  revenue: { total: number }
+}
+
+export interface SaaSStore {
+  id: string; name: string; slug: string; phone: string; address: string; primary_color: string; is_active: number; created_at: string
+  user_count?: number; order_count?: number; sub_status?: string; sub_plan?: string
+}
+
+export interface SAASSubscription {
+  id: string; store_id: string; plan: string; status: string; trial_ends_at: string; current_period_end: string; created_at: string
+  store_name?: string; store_slug?: string
+}
+
+export async function getSAASStats(): Promise<SaaSStats> { const { data } = await api.get('/saas/stats'); return data }
+export async function getSaaSStores(): Promise<SaaSStore[]> { const { data } = await api.get('/saas/stores'); return data }
+export async function getSaaSStore(id: string): Promise<any> { const { data } = await api.get(`/saas/stores/${id}`); return data }
+export async function updateSaaSStore(id: string, store: Partial<SaaSStore>): Promise<any> { const { data } = await api.put(`/saas/stores/${id}`, store); return data }
+export async function deleteSaaSStore(id: string): Promise<any> { const { data } = await api.delete(`/saas/stores/${id}`); return data }
+export async function getSAASSubscriptions(): Promise<SAASSubscription[]> { const { data } = await api.get('/saas/subscriptions'); return data }
+
+export interface SaaSAnalytics {
+  revenueByDay: { date: string; revenue: number; orders: number }[]
+  ordersByStatus: { status: string; count: number }[]
+  topStores: { name: string; slug: string; revenue: number; orders: number }[]
+  deliveryVsPickup: { type: string; count: number }[]
+  monthlyRevenue: { month: string; revenue: number }[]
+  storeLimits: { name: string; slug: string; plan: string; product_count: number; month_orders: number; user_count: number }[]
+}
+
+export async function getSaaSAnalytics(): Promise<SaaSAnalytics> { const { data } = await api.get('/saas/analytics'); return data }
+
 // CEP autocomplete via ViaCEP
 export async function fetchCep(cep: string) {
   const cleanCep = cep.replace(/\D/g, '')

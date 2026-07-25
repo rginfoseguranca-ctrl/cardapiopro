@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { v4 as uuid } from 'uuid'
 import { JWT_SECRET } from '../middleware'
 import { createChildLogger } from '../logger'
+import { PLANS } from './billing'
 
 const log = createChildLogger('auth')
 const router = Router()
@@ -237,6 +238,16 @@ router.post('/invite', async (req: Request, res: Response) => {
     if (existing) {
       res.status(409).json({ error: 'Email já cadastrado nesta loja' })
       return
+    }
+
+    const sub = dbGet('SELECT plan FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [decoded.storeId])
+    const plan = PLANS[sub?.plan || 'start'] || PLANS.start
+    if (plan.maxUsers > 0) {
+      const userCount = dbGet('SELECT COUNT(*) as c FROM users WHERE store_id = ?', [decoded.storeId])
+      if (userCount?.c >= plan.maxUsers) {
+        res.status(403).json({ error: `Limite de ${plan.maxUsers} usuários atingido. Atualize seu plano.`, limitType: 'users' })
+        return
+      }
     }
 
     const tempPassword = crypto.randomBytes(8).toString('base64url')

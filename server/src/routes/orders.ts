@@ -5,6 +5,7 @@ import { notifyAll, notifyOrder } from './notifications'
 import { generateKitchenReceipt } from './printers'
 import { authMiddleware, AuthRequest } from '../middleware'
 import { escapeHtml } from '../database'
+import { PLANS } from './billing'
 
 // Send WhatsApp confirmation (using wa.me link)
 function sendWhatsAppConfirmation(order: any, store: any) {
@@ -91,6 +92,17 @@ router.post('/', (req: Request, res: Response) => {
   }
 
   const storeId = (req as AuthRequest).storeId || 'main'
+
+  const sub = dbGet('SELECT plan FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId])
+  const planKey = sub?.plan || 'start'
+  const plan = PLANS[planKey] || PLANS.start
+  if (plan.maxOrdersMonth > 0) {
+    const monthCount = dbGet("SELECT COUNT(*) as c FROM orders WHERE store_id = ? AND created_at >= DATE('now','start of month')", [storeId])
+    if (monthCount?.c >= plan.maxOrdersMonth) {
+      res.status(403).json({ error: `Limite de ${plan.maxOrdersMonth} pedidos/mês atingido. Atualize seu plano.`, limitType: 'orders' })
+      return
+    }
+  }
 
   // Check if store is open (except for scheduled orders)
   if (!scheduledAt && !isStoreOpen(storeId)) {

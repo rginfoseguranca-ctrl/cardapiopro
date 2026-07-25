@@ -9,6 +9,7 @@ import ToastContainer from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
 import ChangePasswordModal from './components/ChangePasswordModal'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminRoute from './components/AdminRoute'
 import Home from './pages/Home'
 import Landing from './pages/Landing'
 import Checkout from './pages/Checkout'
@@ -34,6 +35,7 @@ import LoyaltyDashboard from './pages/LoyaltyDashboard'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import AdminPage from './pages/admin/AdminPage'
 
 export default function App() {
   const [cartOpen, setCartOpen] = useState(false)
@@ -86,6 +88,7 @@ export default function App() {
         <Route path="/fidelidade" element={<LoyaltyDashboard />} />
         <Route path="/privacidade" element={<Privacy />} />
         <Route path="/termos" element={<Terms />} />
+        <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 

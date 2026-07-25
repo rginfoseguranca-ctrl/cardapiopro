@@ -68,3 +68,42 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
       : err.message || 'Erro interno do servidor'
   })
 }
+
+const PLAN_LIMITS: Record<string, { maxProducts: number; maxOrdersMonth: number; maxUsers: number }> = {
+  start:         { maxProducts: 100,  maxOrdersMonth: 2000,  maxUsers: 2 },
+  profissional:  { maxProducts: 500,  maxOrdersMonth: 5000,  maxUsers: 5 },
+  premium:       { maxProducts: -1,   maxOrdersMonth: -1,    maxUsers: -1 },
+}
+
+export function planLimitMiddleware(resource: 'products' | 'orders' | 'users') {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const storeId = (req as AuthRequest).storeId || 'main'
+    const sub = require('../database').dbGet('SELECT plan FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId])
+    const plan = sub?.plan || 'start'
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.start
+
+    if (plan === 'premium') { next(); return }
+
+    const db = require('../database')
+    if (resource === 'products') {
+      const count = db.dbGet('SELECT COUNT(*) as c FROM products WHERE store_id = ?', [storeId])
+      if (count?.c >= limits.maxProducts) {
+        res.status(403).json({ error: `Limite de ${limits.maxProducts} produtos atingido. Atualize seu plano.`, limitType: 'products' })
+        return
+      }
+    } else if (resource === 'orders') {
+      const count = db.dbGet("SELECT COUNT(*) as c FROM orders WHERE store_id = ? AND created_at >= DATE('now','start of month')", [storeId])
+      if (count?.c >= limits.maxOrdersMonth) {
+        res.status(403).json({ error: `Limite de ${limits.maxOrdersMonth} pedidos/mês atingido. Atualize seu plano.`, limitType: 'orders' })
+        return
+      }
+    } else if (resource === 'users') {
+      const count = db.dbGet('SELECT COUNT(*) as c FROM users WHERE store_id = ?', [storeId])
+      if (count?.c >= limits.maxUsers) {
+        res.status(403).json({ error: `Limite de ${limits.maxUsers} usuários atingido. Atualize seu plano.`, limitType: 'users' })
+        return
+      }
+    }
+    next()
+  }
+}
