@@ -34,8 +34,8 @@ export default function AdminLayout({ children, activeTab, onTabChange }: {
           background: '#fff', position: 'sticky', top: 0, zIndex: 50,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className="btn-icon mobile-only" onClick={() => setMobileOpen(true)}
-              style={{ display: 'none', background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', padding: 4 }}>
+            <button className="mobile-menu-btn" onClick={() => setMobileOpen(true)}
+              style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', padding: 4 }}>
               ☰
             </button>
             <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a1a2e' }}>

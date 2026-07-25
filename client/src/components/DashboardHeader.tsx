@@ -17,12 +17,13 @@ const sectionParents: Record<string, string> = {
 }
 
 export default function DashboardHeader({
-  activeTab, onMenuClick, storeIcon, storeName,
+  activeTab, onMenuClick, storeIcon, storeName, pendingCount = 0,
 }: {
   activeTab: string
   onMenuClick: () => void
   storeIcon: string
   storeName: string
+  pendingCount?: number
 }) {
   const user = useAuth(s => s.user)
   const logout = useAuth(s => s.logout)
@@ -42,6 +43,16 @@ export default function DashboardHeader({
       <div className="dashboard-header-actions">
         <a href="/kds" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">👨‍🍳 KDS</a>
         <a href="/" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">🔗 Site</a>
+        <button className="btn btn-sm btn-outline" style={{ position: 'relative', fontSize: '1.1rem', padding: '6px 10px' }}>
+          🔔
+          {pendingCount > 0 && (
+            <span style={{
+              position: 'absolute', top: -4, right: -4, background: 'var(--danger)', color: '#fff',
+              fontSize: '.65rem', fontWeight: 700, minWidth: 16, height: 16, borderRadius: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+            }}>{pendingCount}</span>
+          )}
+        </button>
         {user && (
           <span style={{ fontSize: '.8rem', color: 'var(--text-light)', marginRight: 8 }}>
             {user.name || user.email}

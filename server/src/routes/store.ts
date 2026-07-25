@@ -96,18 +96,35 @@ router.get('/', (req: Request, res: Response) => {
 })
 
 router.put('/', authMiddleware, (req: Request, res: Response) => {
-  const { storeName, storeIcon, primaryColor, primaryDark, paymentPixKey, paymentPixName, paymentCardInfo, paymentCashInfo, footerText, schedulingEnabled, whatsapp, openingHours, deliveryFee, freeDeliveryFrom } = req.body
   const storeId = (req as AuthRequest).storeId || 'main'
-  dbRun(`UPDATE company_settings SET
-    store_name = ?, store_icon = ?, primary_color = ?, primary_dark = ?,
-    payment_pix_key = ?, payment_pix_name = ?, payment_card_info = ?, payment_cash_info = ?,
-    footer_text = ?, scheduling_enabled = ?, whatsapp = ?, opening_hours = ?,
-    delivery_fee = ?, free_delivery_from = ?, updated_at = datetime('now')
-    WHERE id = ?`,
-    [storeName || 'Minha Loja', storeIcon || '🍔', primaryColor || '#e74c3c', primaryDark || '#c0392b',
-      paymentPixKey || '', paymentPixName || '', paymentCardInfo || '', paymentCashInfo || '',
-      footerText || '', schedulingEnabled ? 1 : 0, whatsapp || '', JSON.stringify(openingHours || {}),
-      deliveryFee || 0, freeDeliveryFrom || 0, storeId])
+  const mapping: Record<string, [string, any?]> = {
+    storeName: ['store_name'], storeIcon: ['store_icon'], primaryColor: ['primary_color'],
+    primaryDark: ['primary_dark'], paymentPixKey: ['payment_pix_key'],
+    paymentPixName: ['payment_pix_name'], paymentCardInfo: ['payment_card_info'],
+    paymentCashInfo: ['payment_cash_info'], footerText: ['footer_text'],
+    whatsapp: ['whatsapp'], deliveryFee: ['delivery_fee'], freeDeliveryFrom: ['free_delivery_from'],
+    logoUrl: ['logo_url'],
+  }
+  const fields: string[] = []
+  const values: any[] = []
+  for (const [key, [col]] of Object.entries(mapping)) {
+    if (req.body[key] !== undefined) {
+      fields.push(`${col} = ?`)
+      values.push(req.body[key])
+    }
+  }
+  if (req.body.schedulingEnabled !== undefined) {
+    fields.push('scheduling_enabled = ?')
+    values.push(req.body.schedulingEnabled ? 1 : 0)
+  }
+  if (req.body.openingHours !== undefined) {
+    fields.push('opening_hours = ?')
+    values.push(JSON.stringify(req.body.openingHours))
+  }
+  if (fields.length === 0) { res.json({ success: true }); return }
+  fields.push("updated_at = datetime('now')")
+  values.push(storeId)
+  dbRun(`UPDATE company_settings SET ${fields.join(', ')} WHERE id = ?`, values)
   res.json({ success: true })
 })
 

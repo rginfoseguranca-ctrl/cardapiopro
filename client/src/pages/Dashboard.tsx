@@ -144,6 +144,7 @@ export default function Dashboard() {
           onMenuClick={() => setMobileOpen(true)}
           storeIcon={storeIcon}
           storeName={storeName}
+          pendingCount={pendingCount}
         />
 
         {/* ─── Dashboard Overview ─── */}
