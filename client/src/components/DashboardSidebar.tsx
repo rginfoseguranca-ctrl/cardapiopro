@@ -11,60 +11,134 @@ interface MenuItem {
 const menuSections: { title?: string; items: MenuItem[] }[] = [
   {
     items: [
-      { key: 'dashboard', icon: '📊', label: 'Painel' },
       { key: 'orders', icon: '📋', label: 'Pedidos', badge: 0 },
-      { key: 'produtos', icon: '🍔', label: 'Cardápio' },
-      { key: 'complements', icon: '🧩', label: 'Complementos' },
+      { key: 'tables', icon: '🪑', label: 'Mesas e Comandas' },
+      { key: 'kds', icon: '🍳', label: 'KDS' },
+      { key: 'caixa', icon: '💰', label: 'Caixa' },
+    ]
+  },
+  {
+    title: 'Desempenho',
+    items: [
+      {
+        key: 'desempenho', icon: '📈', label: 'Desempenho',
+        children: [
+          { key: 'desempenho-vendas', label: 'Vendas' },
+          { key: 'desempenho-clientes', label: 'Clientes' },
+          { key: 'desempenho-rfv', label: 'Base de Clientes (RFV)' },
+          { key: 'desempenho-catalogo', label: 'Catálogo' },
+          { key: 'desempenho-entregas', label: 'Entregas' },
+          { key: 'desempenho-descontos', label: 'Descontos' },
+          { key: 'desempenho-cancelamentos', label: 'Cancelamentos' },
+          { key: 'desempenho-visao-geral', label: 'Visão Geral' },
+        ]
+      },
+      { key: 'historico', icon: '📜', label: 'Histórico de Pedidos' },
+    ]
+  },
+  {
+    title: 'Empresa',
+    items: [
+      {
+        key: 'minha-empresa', icon: '🏢', label: 'Minha Empresa',
+        children: [
+          { key: 'empresa-perfil', label: 'Perfil' },
+          { key: 'empresa-horarios', label: 'Horários' },
+          { key: 'empresa-pagamentos', label: 'Formas de Pagamento' },
+          { key: 'empresa-campos', label: 'Campos Personalizados' },
+        ]
+      },
+      {
+        key: 'catalogo', icon: '🍔', label: 'Catálogo',
+        children: [
+          { key: 'produtos', label: 'Produtos/Categorias' },
+          { key: 'complements', label: 'Complementos' },
+          { key: 'combos', label: 'Combos' },
+          { key: 'estoque-simples', label: 'Estoque Simples' },
+        ]
+      },
+      {
+        key: 'delivery', icon: '🚚', label: 'Delivery',
+        children: [
+          { key: 'areas-entrega', label: 'Áreas de Entrega' },
+          { key: 'entregadores', label: 'Entregadores' },
+        ]
+      },
+    ]
+  },
+  {
+    title: 'Clientes e Relacionamento',
+    items: [
       { key: 'crm', icon: '👥', label: 'Clientes' },
+      { key: 'avaliacoes', icon: '⭐', label: 'Avaliações' },
+      { key: 'fiado', icon: '💸', label: 'Fiado' },
     ]
   },
   {
-    title: 'Financeiro',
+    title: 'Administrativo',
     items: [
       {
-        key: 'financeiro', icon: '💰', label: 'Financeiro',
+        key: 'admin', icon: '👥', label: 'Administrativo',
         children: [
-          { key: 'financeiro', label: 'Dashboard Financeiro' },
-          { key: 'caixa', label: 'Caixa' },
-          { key: 'fiado', label: 'Fiado' },
-          { key: 'notas', label: 'NF-e' },
+          { key: 'usuarios', label: 'Usuários' },
+          { key: 'assinaturas', label: 'Assinaturas' },
+          { key: 'multiloja', label: 'Multi-Lojas' },
+        ]
+      },
+      {
+        key: 'impressoras', icon: '🖨️', label: 'Impressora',
+        children: [
+          { key: 'impressoras-vincular', label: 'Vincular Impressora' },
+          { key: 'impressoras-setores', label: 'Setores de Impressão' },
+          { key: 'impressoras-config', label: 'Configurações' },
+        ]
+      },
+      {
+        key: 'config', icon: '⚙️', label: 'Configurações',
+        children: [
+          { key: 'config-geral', label: 'Configurações Gerais' },
+          { key: 'personalizar-site', label: 'Personalizar Site' },
+          { key: 'agendamento', label: 'Agendamento' },
+          { key: 'integrations', label: 'Integrações' },
         ]
       },
     ]
   },
   {
-    title: 'Operacional',
-    items: [
-      { key: 'estoque', icon: '📦', label: 'Estoque' },
-      { key: 'estoque-avancado', icon: '📊', label: 'Estoque Avançado' },
-      { key: 'impressoras', icon: '🖨️', label: 'Impressoras' },
-      { key: 'rotas', icon: '🚚', label: 'Rotas' },
-      { key: 'entregadores', icon: '🏍️', label: 'Entregadores' },
-      { key: 'pdv', icon: '💻', label: 'PDV' },
-    ]
-  },
-  {
-    title: 'Marketing',
+    title: 'Marketing e Vendas',
     items: [
       {
-        key: 'marketing', icon: '📢', label: 'Marketing',
+        key: 'marketing', icon: '📢', label: 'Food Marketing',
         children: [
-          { key: 'coupons', label: 'Cupons' },
-          { key: 'loyalty', label: 'Fidelidade' },
+          { key: 'campaigns', label: 'Campanhas WhatsApp' },
+          { key: 'segmentacao', label: 'Segmentação de Clientes' },
+          { key: 'site-analytics', label: 'Site Analytics' },
+        ]
+      },
+      { key: 'chatbot', icon: '🤖', label: 'Chatbot' },
+      { key: 'coupons', icon: '🎫', label: 'Cupons e Descontos' },
+      {
+        key: 'fidelidade', icon: '🎯', label: 'Fidelidade',
+        children: [
+          { key: 'loyalty', label: 'Programa de Fidelidade' },
           { key: 'cashback', label: 'Cashback' },
-          { key: 'campaigns', label: 'Campanhas' },
-          { key: 'abandoned', label: 'Carrinhos' },
         ]
       },
     ]
   },
   {
-    title: 'Configurações',
+    title: 'Módulos do Sistema',
     items: [
-      { key: 'store', icon: '⚙️', label: 'Loja' },
-      { key: 'multiloja', icon: '🏪', label: 'Multi-Lojas' },
-      { key: 'tables', icon: '🪑', label: 'Mesas' },
-      { key: 'integrations', icon: '🔌', label: 'Integrações' },
+      { key: 'estoque-avancado', icon: '📦', label: 'Estoque Avançado' },
+      {
+        key: 'financeiro', icon: '📊', label: 'Módulo Financeiro',
+        children: [
+          { key: 'financeiro-dashboard', label: 'Dashboard Financeiro' },
+          { key: 'financeiro-lancamentos', label: 'Lançamentos' },
+          { key: 'financeiro-fluxo', label: 'Fluxo de Caixa' },
+        ]
+      },
+      { key: 'notas', icon: '📄', label: 'Módulo Fiscal (NF-e)' },
     ]
   },
   {
@@ -73,6 +147,7 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
       { key: 'blog', icon: '📝', label: 'Blog' },
       { key: 'partners', icon: '🤝', label: 'Parceiros' },
       { key: 'leads', icon: '📋', label: 'Leads' },
+      { key: 'ver-links', icon: '🔗', label: 'Ver Meus Links' },
     ]
   },
 ]
@@ -92,8 +167,9 @@ export default function DashboardSidebar({
   storeName: string
 }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    financeiro: true,
+    desempenho: true,
     marketing: true,
+    financeiro: true,
   })
 
   const toggleGroup = (key: string) => {

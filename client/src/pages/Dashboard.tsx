@@ -12,6 +12,27 @@ import DriversPanel from '../components/DriversPanel'
 import OnboardingChecklist from '../components/OnboardingChecklist'
 import StoresPanel from '../components/StoresPanel'
 import AdvancedInventoryPanel from '../components/AdvancedInventoryPanel'
+import DesempenhoVendas from './DesempenhoVendas'
+import DesempenhoClientes from './DesempenhoClientes'
+import DesempenhoRFV from './DesempenhoRFV'
+import DesempenhoCatalogo from './DesempenhoCatalogo'
+import DesempenhoEntregas from './DesempenhoEntregas'
+import DesempenhoDescontos from './DesempenhoDescontos'
+import DesempenhoCancelamentos from './DesempenhoCancelamentos'
+import DesempenhoVisaoGeral from './DesempenhoVisaoGeral'
+import HistoricoPedidos from './HistoricoPedidos'
+import MinhaEmpresa from './MinhaEmpresa'
+import Avaliacoes from './Avaliacoes'
+import ChatbotPage from './Chatbot'
+import SiteAnalyticsPage from './SiteAnalytics'
+import VerMeusLinks from './VerMeusLinks'
+import PersonalizarSite from './PersonalizarSite'
+import AgendamentoPage from './Agendamento'
+import AreasEntrega from './AreasEntrega'
+import ConfigGeral from './ConfigGeral'
+import UsuariosPage from './Usuarios'
+import AssinaturasPage from './Assinaturas'
+import ImpressoraConfig from './ImpressoraConfig'
 
 function SalesChart({ data }: { data: { day: string; count: number; revenue: number }[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -163,12 +184,12 @@ export default function Dashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {[
                     { tab: 'orders', icon: '📋', label: 'Pedidos' },
-                    { tab: 'produtos', icon: '🍔', label: 'Produtos' },
-                    { tab: 'categorias', icon: '📂', label: 'Categorias' },
+                    { tab: 'produtos', icon: '🍔', label: 'Cardápio' },
+                    { tab: 'desempenho-vendas', icon: '📈', label: 'Vendas' },
                     { tab: 'crm', icon: '👥', label: 'Clientes' },
                     { tab: 'caixa', icon: '💰', label: 'Caixa' },
-                    { tab: 'store', icon: '⚙️', label: 'Config. Loja' },
-                    { tab: 'impressoras', icon: '🖨️', label: 'Impressoras' },
+                    { tab: 'config-geral', icon: '⚙️', label: 'Configurações' },
+                    { tab: 'impressoras-vincular', icon: '🖨️', label: 'Impressoras' },
                   ].map(item => (
                     <button key={item.tab} className="btn btn-outline btn-sm" onClick={() => setTab(item.tab)}>
                       {item.icon} {item.label}
@@ -218,7 +239,7 @@ export default function Dashboard() {
         {tab === 'cashback' && <CashbackPanel settings={cashbackSettings} />}
         {tab === 'crm' && <CRMPanel segmentation={segmentation} />}
         {tab === 'integrations' && <IntegrationsPanel integrations={integrations} />}
-        {tab === 'financeiro' && <FinancePanel />}
+        {tab === 'financeiro' || tab === 'financeiro-dashboard' ? <FinancePanel /> : null}
         {tab === 'entregadores' && <DriversPanel />}
         {tab === 'multiloja' && <StoresPanel />}
         {tab === 'estoque-avancado' && <AdvancedInventoryPanel />}
@@ -236,6 +257,30 @@ export default function Dashboard() {
         {tab === 'partners' && <PartnersPanel partners={partners} />}
         {tab === 'categorias' && <CategoriasPanel />}
         {tab === 'store' && <StoreSettingsPanel settings={storeSettings} />}
+        {tab === 'kds' && <iframe src="/kds" style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none', borderRadius: 12 }} title="KDS" />}
+        {tab === 'desempenho-vendas' && <DesempenhoVendas />}
+        {tab === 'desempenho-clientes' && <DesempenhoClientes />}
+        {tab === 'desempenho-rfv' && <DesempenhoRFV />}
+        {tab === 'desempenho-catalogo' && <DesempenhoCatalogo />}
+        {tab === 'desempenho-entregas' && <DesempenhoEntregas />}
+        {tab === 'desempenho-descontos' && <DesempenhoDescontos />}
+        {tab === 'desempenho-cancelamentos' && <DesempenhoCancelamentos />}
+        {tab === 'desempenho-visao-geral' && <DesempenhoVisaoGeral />}
+        {tab === 'historico' && <HistoricoPedidos />}
+        {tab === 'empresa-perfil' || tab === 'empresa-horarios' || tab === 'empresa-pagamentos' || tab === 'empresa-campos' ? <MinhaEmpresa /> : null}
+        {tab === 'avaliacoes' && <Avaliacoes />}
+        {tab === 'chatbot' && <ChatbotPage />}
+        {tab === 'site-analytics' && <SiteAnalyticsPage />}
+        {tab === 'ver-links' && <VerMeusLinks />}
+        {tab === 'personalizar-site' && <PersonalizarSite />}
+        {tab === 'agendamento' && <AgendamentoPage />}
+        {tab === 'areas-entrega' && <AreasEntrega />}
+        {tab === 'config-geral' && <ConfigGeral />}
+        {tab === 'usuarios' && <UsuariosPage />}
+        {tab === 'assinaturas' && <AssinaturasPage />}
+        {tab === 'impressoras-vincular' || tab === 'impressoras-setores' || tab === 'impressoras-config' ? <ImpressoraConfig /> : null}
+        {tab === 'financeiro-lancamentos' || tab === 'financeiro-fluxo' ? <FinancePanel /> : null}
+        {tab === 'segmentacao' && <CRMPanel segmentation={segmentation} />}
       </main>
     </div>
   )
