@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getAbandonedCarts, getCashbackSettings, setCashbackSettings, getCustomerSegmentation, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getInvoices, issueInvoice, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getBlogPosts, createBlogPost, deleteBlogPost, getLeads, getPartners, getStoreSettings, updateStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, uploadProductImage, getComplementGroups, createComplementGroup, createComplement, deleteComplement, type StoreSettings } from '../api/client'
+import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getAbandonedCarts, getCashbackSettings, setCashbackSettings, getCustomerSegmentation, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getInvoices, issueInvoice, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getBlogPosts, createBlogPost, deleteBlogPost, getLeads, getPartners, getStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, uploadProductImage, getComplementGroups, createComplementGroup, createComplement, deleteComplement } from '../api/client'
 import { exportToCSV, ordersToCSV } from '../utils/export'
 import React, { useState, useRef, useEffect } from 'react'
 import DashboardSidebar from '../components/DashboardSidebar'
@@ -36,6 +36,7 @@ import ImpressoraConfig from './ImpressoraConfig'
 import AvisosPanel from './AvisosPanel'
 import OpcoesPanel from './OpcoesPanel'
 import FiltrosAvancadosPanel from './FiltrosAvancadosPanel'
+import CombosPanel from './CombosPanel'
 
 function SalesChart({ data }: { data: { day: string; count: number; revenue: number }[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -253,7 +254,7 @@ export default function Dashboard() {
         {tab === 'complements' && <ComplementsPanel />}
         {tab === 'opcoes' && <OpcoesPanel />}
         {tab === 'filtros-avancados' && <FiltrosAvancadosPanel />}
-        {tab === 'combos' && <ProdutosPanel />}
+        {tab === 'combos' && <CombosPanel />}
         {tab === 'estoque-simples' && <EstoquePanel />}
         {tab === 'caixa' && <CaixaPanel />}
         {tab === 'estoque' && <EstoquePanel />}
@@ -265,7 +266,7 @@ export default function Dashboard() {
         {tab === 'leads' && <LeadsPanel leads={leads} />}
         {tab === 'partners' && <PartnersPanel partners={partners} />}
         {tab === 'categorias' && <CategoriasPanel />}
-        {tab === 'store' && <StoreSettingsPanel settings={storeSettings} />}
+        {tab === 'avaliacoes' && <Avaliacoes />}
         {tab === 'kds' && <iframe src="/kds" style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none', borderRadius: 12 }} title="KDS" />}
         {tab === 'desempenho-vendas' && <DesempenhoVendas />}
         {tab === 'desempenho-clientes' && <DesempenhoClientes />}
@@ -1478,212 +1479,6 @@ function PartnersPanel({ partners }: any) {
   )
 }
 
-function StoreSettingsPanel({ settings }: { settings: StoreSettings | undefined }) {
-  const queryClient = useQueryClient()
-  const [form, setForm] = useState({
-    storeName: '', storeIcon: '', primaryColor: '#e74c3c', primaryDark: '#c0392b',
-    paymentPixKey: '', paymentPixName: '', paymentCardInfo: '', paymentCashInfo: '', footerText: '',
-    schedulingEnabled: false, whatsapp: '', logoUrl: '',
-    deliveryFee: 0, freeDeliveryFrom: 0,
-    openingHours: {} as Record<string, { open: string; close: string; closed: boolean }>,
-  })
-
-  const [saved, setSaved] = useState(false)
-  const [uploading, setUploading] = useState(false)
-
-  const updateMut = useMutation({
-    mutationFn: updateStoreSettings,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['storeSettings'] }); setSaved(true); setTimeout(() => setSaved(false), 2000) }
-  })
-
-  React.useEffect(() => {
-    if (settings) setForm({
-      storeName: settings.storeName,
-      storeIcon: settings.storeIcon,
-      primaryColor: settings.primaryColor,
-      primaryDark: settings.primaryDark,
-      paymentPixKey: settings.paymentPixKey,
-      paymentPixName: settings.paymentPixName,
-      paymentCardInfo: settings.paymentCardInfo,
-      paymentCashInfo: settings.paymentCashInfo,
-      footerText: settings.footerText,
-      schedulingEnabled: settings.schedulingEnabled,
-      whatsapp: settings.whatsapp,
-      logoUrl: settings.logoUrl,
-      deliveryFee: (settings as any).deliveryFee || 0,
-      freeDeliveryFrom: (settings as any).freeDeliveryFrom || 0,
-      openingHours: settings.openingHours || {},
-    })
-  }, [settings])
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault()
-    updateMut.mutate(form)
-  }
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('logo', file)
-      const res = await fetch('/api/store/logo', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (data.logoUrl) setForm(f => ({ ...f, logoUrl: data.logoUrl }))
-    } catch { alert('Erro ao enviar logo') }
-    finally { setUploading(false) }
-  }
-
-  const days = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo']
-  const dayLabels: Record<string, string> = {
-    segunda: 'Segunda', terca: 'Terça', quarta: 'Quarta', quinta: 'Quinta',
-    sexta: 'Sexta', sabado: 'Sábado', domingo: 'Domingo',
-  }
-
-  const setHour = (day: string, field: 'open' | 'close' | 'closed', value: string | boolean) => {
-    setForm(f => ({
-      ...f,
-      openingHours: {
-        ...f.openingHours,
-        [day]: { ...f.openingHours[day] || { open: '08:00', close: '22:00', closed: false }, [field]: value },
-      }
-    }))
-  }
-
-  return (
-    <div className="dashboard-card panel-fadeIn">
-      <h3 style={{ marginBottom: 16 }}>⚙️ Configurações da Loja</h3>
-      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Nome da Loja</label>
-            <input style={inputStyle} value={form.storeName} onChange={e => setForm(f => ({ ...f, storeName: e.target.value }))} />
-          </div>
-          <div>
-            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Ícone (emoji)</label>
-            <input style={inputStyle} value={form.storeIcon} onChange={e => setForm(f => ({ ...f, storeIcon: e.target.value }))} maxLength={2} />
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Logo (imagem)</label>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            {form.logoUrl && <img src={form.logoUrl} alt="logo" style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />}
-            <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
-              {uploading ? 'Enviando...' : '📤 Escolher Imagem'}
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
-            </label>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Cor Principal</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="color" style={{ width: 48, height: 40, padding: 0, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer' }}
-                value={form.primaryColor} onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))} />
-              <input style={{ flex: 1 }} value={form.primaryColor} onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Cor Secundária (hover)</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="color" style={{ width: 48, height: 40, padding: 0, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer' }}
-                value={form.primaryDark} onChange={e => setForm(f => ({ ...f, primaryDark: e.target.value }))} />
-              <input style={{ flex: 1 }} value={form.primaryDark} onChange={e => setForm(f => ({ ...f, primaryDark: e.target.value }))} />
-            </div>
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
-          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>📞 Contato</h4>
-          <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>WhatsApp (com DDD)</label>
-          <input style={inputStyle} value={form.whatsapp} onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))} placeholder="(11) 99999-8888" />
-          <p className="text-xs text-muted mt-xs">Link do WhatsApp aparece no topo do site</p>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
-          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>⏰ Horários</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {days.map(day => {
-              const h = form.openingHours[day] || { open: '08:00', close: '22:00', closed: false }
-              return (
-                <div key={day} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <label style={{ width: 90, fontSize: '.85rem', fontWeight: 500 }}>{dayLabels[day]}</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
-                    <input type="checkbox" checked={h.closed} onChange={e => setHour(day, 'closed', e.target.checked)} /> Fechado
-                  </label>
-                  {!h.closed && (
-                    <>
-                      <input type="time" style={{ ...inputStyle, width: 100 }} value={h.open} onChange={e => setHour(day, 'open', e.target.value)} />
-                      <span style={{ fontSize: '.85rem' }}>às</span>
-                      <input type="time" style={{ ...inputStyle, width: 100 }} value={h.close} onChange={e => setHour(day, 'close', e.target.value)} />
-                    </>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
-          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>📅 Agendamento</h4>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.9rem' }}>
-            <input type="checkbox" checked={form.schedulingEnabled} onChange={e => setForm(f => ({ ...f, schedulingEnabled: e.target.checked }))} />
-            Permitir agendamento de pedidos
-          </label>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
-          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>🚚 Entrega</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Taxa de entrega (R$)</label>
-              <input style={inputStyle} type="number" step="0.50" min="0" value={form.deliveryFee} onChange={e => setForm(f => ({ ...f, deliveryFee: Number(e.target.value) }))} placeholder="0" />
-            </div>
-            <div>
-              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Entrega grátis acima de (R$)</label>
-              <input style={inputStyle} type="number" step="1" min="0" value={form.freeDeliveryFrom} onChange={e => setForm(f => ({ ...f, freeDeliveryFrom: Number(e.target.value) }))} placeholder="0 = desabilitado" />
-            </div>
-          </div>
-          <p className="text-xs text-muted mt-xs">Se "Entrega grátis acima de" for 0, sempre cobra a taxa.</p>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 8 }}>
-          <h4 style={{ fontSize: '.95rem', marginBottom: 12 }}>💳 Pagamento</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Chave PIX</label>
-              <input style={inputStyle} value={form.paymentPixKey} onChange={e => setForm(f => ({ ...f, paymentPixKey: e.target.value }))} placeholder="11.99999-8888" />
-            </div>
-            <div>
-              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Nome do PIX</label>
-              <input style={inputStyle} value={form.paymentPixName} onChange={e => setForm(f => ({ ...f, paymentPixName: e.target.value }))} placeholder="Nome do recebedor" />
-            </div>
-            <div>
-              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Cartão</label>
-              <input style={inputStyle} value={form.paymentCardInfo} onChange={e => setForm(f => ({ ...f, paymentCardInfo: e.target.value }))} placeholder="Débito/Crédito em até 3x" />
-            </div>
-            <div>
-              <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Dinheiro</label>
-              <input style={inputStyle} value={form.paymentCashInfo} onChange={e => setForm(f => ({ ...f, paymentCashInfo: e.target.value }))} placeholder="Dinheiro" />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Rodapé</label>
-          <input style={inputStyle} value={form.footerText} onChange={e => setForm(f => ({ ...f, footerText: e.target.value }))} placeholder="Hamburgueria artesanal • (11) 99999-8888" />
-        </div>
-
-        <button type="submit" className="btn btn-primary" disabled={updateMut.isPending} style={{ alignSelf: 'flex-start' }}>
-          {updateMut.isPending ? 'Salvando...' : saved ? '✓ Salvo!' : 'Salvar Configurações'}
-        </button>
-      </form>
-    </div>
-  )
-}
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: '1rem', outline: 'none',

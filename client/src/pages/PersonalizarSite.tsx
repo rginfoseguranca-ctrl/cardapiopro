@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getStoreSettings, updateStoreSettings, uploadProductImage, type StoreSettings } from '../api/client'
+import { getStoreSettings, updateStoreSettings, api, type StoreSettings } from '../api/client'
 
 export default function PersonalizarSite() {
   const queryClient = useQueryClient()
@@ -37,8 +37,10 @@ export default function PersonalizarSite() {
     if (!file) return
     setUploadingLogo(true)
     try {
-      const { imageUrl } = await uploadProductImage(file)
-      setLogoPreview(imageUrl)
+      const fd = new FormData()
+      fd.append('logo', file)
+      const { data } = await api.post('/store/logo', fd)
+      setLogoPreview(data.logoUrl + '?t=' + Date.now())
     } catch { alert('Erro ao enviar logo') }
     setUploadingLogo(false)
     if (logoFileRef.current) logoFileRef.current.value = ''

@@ -1,18 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getComplementGroups, type ComplementGroup, uploadProductImage } from '../api/client'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
-
-async function apiRequest(method: string, path: string, body?: any) {
-  const token = localStorage.getItem('token')
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  return res.json()
-}
+import { getComplementGroups, api, type ComplementGroup, uploadProductImage } from '../api/client'
 
 export default function OpcoesPanel() {
   const queryClient = useQueryClient()
@@ -26,17 +14,17 @@ export default function OpcoesPanel() {
   const options = groups?.find(g => g.id === selectedGroup)?.items || []
 
   const createMut = useMutation({
-    mutationFn: (data: any) => apiRequest('POST', '/complements', data),
+    mutationFn: (data: any) => api.post('/complements', data).then(r => r.data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['complementGroups'] }); setShowForm(false); setForm({ name: '', price: '', description: '', imageUrl: '' }) },
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, ...data }: any) => apiRequest('PUT', `/complements/${id}`, data),
+    mutationFn: ({ id, ...data }: any) => api.put(`/complements/${id}`, data).then(r => r.data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['complementGroups'] }); setShowForm(false); setEditingId(null); setForm({ name: '', price: '', description: '', imageUrl: '' }) },
   })
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => apiRequest('DELETE', `/complements/${id}`),
+    mutationFn: (id: string) => api.delete(`/complements/${id}`).then(r => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['complementGroups'] }),
   })
 

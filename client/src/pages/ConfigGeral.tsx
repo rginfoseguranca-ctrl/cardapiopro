@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getStoreSettings, updateStoreSettings, type StoreSettings } from '../api/client'
 
 const styles: Record<string, React.CSSProperties> = {
   page: { padding: 24, display: 'flex', flexDirection: 'column', gap: 20, fontFamily: 'Inter, sans-serif', background: '#f5f5f5', minHeight: '100vh' },
@@ -18,12 +20,12 @@ const styles: Record<string, React.CSSProperties> = {
   textarea: { padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8, fontSize: 14, outline: 'none', resize: 'vertical' as const, minHeight: 80 },
   formRow: { display: 'flex', gap: 16, flexWrap: 'wrap' as const },
   btn: { padding: '10px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' },
-};
+}
 
 interface ToggleProps {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
+  label: string
+  checked: boolean
+  onChange: () => void
 }
 
 function Toggle({ label, checked, onChange }: ToggleProps) {
@@ -34,22 +36,43 @@ function Toggle({ label, checked, onChange }: ToggleProps) {
       </button>
       <span style={styles.toggleLabel}>{label}</span>
     </div>
-  );
+  )
 }
 
 export default function ConfigGeral() {
-  const [deliveryActive, setDeliveryActive] = useState(true);
-  const [pickupActive, setPickupActive] = useState(true);
-  const [counterActive, setCounterActive] = useState(false);
-  const [schedulingActive, setSchedulingActive] = useState(false);
-  const [deliveryFee, setDeliveryFee] = useState('5.00');
-  const [freeFrom, setFreeFrom] = useState('50.00');
-  const [minOrder, setMinOrder] = useState('20.00');
-  const [observation, setObservation] = useState('');
+  const queryClient = useQueryClient()
+  const { data: settings } = useQuery<StoreSettings>({ queryKey: ['storeSettings'], queryFn: getStoreSettings })
+
+  const [deliveryActive, setDeliveryActive] = useState(true)
+  const [pickupActive, setPickupActive] = useState(true)
+  const [counterActive, setCounterActive] = useState(false)
+  const [schedulingActive, setSchedulingActive] = useState(false)
+  const [deliveryFee, setDeliveryFee] = useState('5.00')
+  const [freeFrom, setFreeFrom] = useState('50.00')
+  const [minOrder, setMinOrder] = useState('20.00')
+  const [observation, setObservation] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (settings) {
+      setSchedulingActive(settings.schedulingEnabled || false)
+      setDeliveryFee(String(settings.deliveryFee || 5))
+      setFreeFrom(String(settings.freeDeliveryFrom || 50))
+    }
+  }, [settings])
+
+  const updateMut = useMutation({
+    mutationFn: (data: Partial<StoreSettings>) => updateStoreSettings(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['storeSettings'] }); setSaved(true); setTimeout(() => setSaved(false), 2000) },
+  })
 
   const handleSave = () => {
-    alert('Configurações salvas!');
-  };
+    updateMut.mutate({
+      schedulingEnabled: schedulingActive,
+      deliveryFee: Number(deliveryFee),
+      freeDeliveryFrom: Number(freeFrom),
+    } as any)
+  }
 
   return (
     <div style={styles.page}>
@@ -88,7 +111,10 @@ export default function ConfigGeral() {
         <textarea style={styles.textarea} value={observation} onChange={e => setObservation(e.target.value)} placeholder="Mensagem exibida ao cliente..." />
       </div>
 
-      <button style={styles.btn} onClick={handleSave}>Salvar Configurações</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button style={styles.btn} onClick={handleSave} disabled={updateMut.isPending}>{updateMut.isPending ? 'Salvando...' : 'Salvar Configurações'}</button>
+        {saved && <span style={{ color: '#27ae60', fontSize: '0.85rem' }}>✓ Salvo!</span>}
+      </div>
     </div>
-  );
+  )
 }
