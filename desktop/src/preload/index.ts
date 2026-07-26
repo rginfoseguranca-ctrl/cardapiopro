@@ -122,6 +122,14 @@ const electronAPI = {
     createReward: (reward: any) => ipcRenderer.invoke('loyalty:create-reward', reward),
     deleteReward: (id: string) => ipcRenderer.invoke('loyalty:delete-reward', id),
   },
+
+  // Auth (local)
+  auth: {
+    login: (email: string, password: string) => ipcRenderer.invoke('auth:login', email, password),
+    register: (payload: any) => ipcRenderer.invoke('auth:register', payload),
+    me: (token: string) => ipcRenderer.invoke('auth:me', token),
+    changePassword: (currentPassword: string, newPassword: string) => ipcRenderer.invoke('auth:change-password', currentPassword, newPassword),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

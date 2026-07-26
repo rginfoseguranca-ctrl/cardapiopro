@@ -84,6 +84,12 @@ interface ElectronAPI {
     createReward: (reward: any) => Promise<any>
     deleteReward: (id: string) => Promise<any>
   }
+  auth: {
+    login: (email: string, password: string) => Promise<any>
+    register: (payload: any) => Promise<any>
+    me: (token: string) => Promise<any>
+    changePassword: (currentPassword: string, newPassword: string) => Promise<any>
+  }
 }
 
 interface Window {

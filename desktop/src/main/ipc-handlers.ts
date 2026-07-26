@@ -430,6 +430,71 @@ export function registerIpcHandlers(): void {
       return { success: false }
     }
   })
+
+  // ─── Auth (local) ───
+  ipcMain.handle('auth:login', async (_e, email: string, password: string) => {
+    const bcrypt = require('bcryptjs')
+    const user = dbGet('SELECT * FROM users WHERE email = ?', [email]) as any
+    if (!user) return { error: 'Email ou senha inválidos' }
+
+    const valid = await bcrypt.compare(password, user.password)
+    if (!valid) return { error: 'Email ou senha inválidos' }
+
+    const token = generateId()
+    const store = dbGet('SELECT * FROM company_settings WHERE id = ?', ['main']) as any
+
+    return {
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      mustChangePassword: Boolean(user.must_change_password),
+      store: { id: 'main', name: store?.store_name || 'Minha Loja', slug: 'main' }
+    }
+  })
+
+  ipcMain.handle('auth:register', async (_e, payload: { storeName: string; name: string; email: string; password: string }) => {
+    const bcrypt = require('bcryptjs')
+    const existing = dbGet('SELECT id FROM users WHERE email = ?', [payload.email])
+    if (existing) return { error: 'Email já cadastrado' }
+
+    const id = generateId()
+    const hash = await bcrypt.hash(payload.password, 10)
+    dbRun('INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)',
+      [id, payload.name, payload.email, hash, 'admin'])
+
+    dbRun("UPDATE company_settings SET store_name = ? WHERE id = ?", [payload.storeName, 'main'])
+
+    const token = generateId()
+    return {
+      token,
+      user: { id, name: payload.name, email: payload.email, role: 'admin' },
+      mustChangePassword: false,
+      store: { id: 'main', name: payload.storeName, slug: 'main' }
+    }
+  })
+
+  ipcMain.handle('auth:me', (_e, token: string) => {
+    const store = dbGet('SELECT * FROM company_settings WHERE id = ?', ['main']) as any
+    return {
+      id: 'local-admin',
+      name: 'Administrador',
+      email: 'admin@local',
+      role: 'admin',
+      store: { id: 'main', name: store?.store_name || 'Minha Loja', slug: 'main' }
+    }
+  })
+
+  ipcMain.handle('auth:change-password', async (_e, currentPassword: string, newPassword: string) => {
+    const bcrypt = require('bcryptjs')
+    const user = dbGet("SELECT * FROM users WHERE role = 'admin' LIMIT 1") as any
+    if (!user) return { error: 'Usuário não encontrado' }
+
+    const valid = await bcrypt.compare(currentPassword, user.password)
+    if (!valid) return { error: 'Senha atual incorreta' }
+
+    const hash = await bcrypt.hash(newPassword, 10)
+    dbRun('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?', [hash, user.id])
+    return { message: 'Senha alterada com sucesso' }
+  })
 }
 
 function addToSyncQueue(operation: string, entityType: string, entityId: string, payload: any): void {

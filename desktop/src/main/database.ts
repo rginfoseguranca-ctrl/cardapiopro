@@ -13,7 +13,13 @@ export function getDb(): SqlJsDatabase {
 }
 
 export async function initDatabase(): Promise<void> {
-  const SQL = await initSqlJs()
+  const wasmPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'sql-wasm.wasm')
+    : path.join(__dirname, '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm')
+
+  const SQL = await initSqlJs({
+    locateFile: () => wasmPath
+  })
 
   const dbDir = path.join(app.getPath('userData'), 'data')
   if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true })
@@ -201,7 +207,7 @@ function seedIfEmpty(): void {
     )
   }
 
-  dbRun("INSERT INTO users (id, name, email, password, role) VALUES ('local-admin', 'Administrador', 'admin@local', 'local-hash', 'admin')")
+  dbRun("INSERT INTO users (id, name, email, password, role) VALUES ('local-admin', 'Administrador', 'admin@local', '$2b$10$eupkPnZiMZ/uc5KCY0dsMekya9XWf/Nrg9nONMsSFOOmrRWhrYFvC', 'admin')")
   dbRun("INSERT OR IGNORE INTO company_settings (id, store_name, store_icon, primary_color, primary_dark) VALUES ('main', 'Minha Loja', '🍔', '#e74c3c', '#c0392b')")
 
   console.log('[Desktop] Seed data inserido')

@@ -242,12 +242,14 @@ export async function sendChatMessage(message: string): Promise<string> {
 
 // Auth
 export async function loginAuth(email: string, password: string) {
+  if (isDesktop) return electronApi.auth.login(email, password)
   const { data } = await api.post('/auth/login', { email, password })
   return data
 }
 export async function getMe() {
   const token = localStorage.getItem('token')
   if (!token) return null
+  if (isDesktop) return electronApi.auth.me(token)
   const { data } = await api.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
   return data
 }
@@ -699,6 +701,7 @@ export interface RegisterResponse {
 }
 
 export async function registerStore(payload: RegisterPayload): Promise<RegisterResponse> {
+  if (isDesktop) return electronApi.auth.register(payload)
   const { data } = await api.post('/auth/register', payload)
   return data
 }
@@ -714,6 +717,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  if (isDesktop) return electronApi.auth.changePassword(currentPassword, newPassword)
   const { data } = await api.post('/auth/change-password', { currentPassword, newPassword })
   return data
 }

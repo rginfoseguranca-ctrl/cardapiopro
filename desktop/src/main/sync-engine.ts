@@ -7,6 +7,14 @@ let onlineStatus = false
 const SERVER_URL = process.env.API_URL || 'http://localhost:3001'
 
 export function startSyncEngine(): void {
+  try {
+    const serverUrl = (dbGet("SELECT value FROM sync_metadata WHERE key = 'server_url'") as any)?.value
+    if (!serverUrl && !process.env.API_URL) {
+      console.log('[Sync] Sem servidor configurado — modo offline puro')
+      return
+    }
+  } catch {}
+
   console.log('[Sync] Motor iniciado — verificando a cada 30s')
   syncInterval = setInterval(() => runSync(), 30000)
   runSync()

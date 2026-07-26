@@ -236,4 +236,11 @@ export const electronApi = {
     createReward: (reward: any) => window.electronAPI!.loyalty.createReward(reward),
     deleteReward: (id: string) => window.electronAPI!.loyalty.deleteReward(id),
   },
+
+  auth: {
+    login: (email: string, password: string) => window.electronAPI!.auth.login(email, password),
+    register: (payload: any) => window.electronAPI!.auth.register(payload),
+    me: (token: string) => window.electronAPI!.auth.me(token),
+    changePassword: (currentPassword: string, newPassword: string) => window.electronAPI!.auth.changePassword(currentPassword, newPassword),
+  },
 }

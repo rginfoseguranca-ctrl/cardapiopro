@@ -1,0 +1,38 @@
+appId: com.cardapiopro.desktop
+productName: CardápioPro
+copyright: Copyright © 2026 CardápioPro
+
+directories:
+  output: dist
+
+files:
+  - out/**/*
+  - node_modules/sql.js/**/*
+  - "!node_modules/sql.js/*.node"
+
+extraResources:
+  - from: node_modules/sql.js/dist/sql-wasm.wasm
+    to: sql-wasm.wasm
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: CardapioPro-${version}-Setup.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: CardápioPro
+  language: 1046
+
+asar: true
+
+npmRebuild: false
