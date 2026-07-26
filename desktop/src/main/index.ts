@@ -8,6 +8,19 @@ import { createMenu } from './menu'
 
 let mainWindow: BrowserWindow | null = null
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'local-cache',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: false
+    }
+  }
+])
+
 const GOT_SINGLE_INSTANCE = app.requestSingleInstanceLock()
 
 if (!GOT_SINGLE_INSTANCE) {
@@ -58,20 +71,6 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  // Register custom protocol for cached images
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: 'local-cache',
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        stream: true,
-        bypassCSP: false
-      }
-    }
-  ])
-
   // Initialize local SQLite database
   await initDatabase()
   console.log('[Desktop] Banco de dados local inicializado')
