@@ -27,6 +27,12 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+*.tmp
+*.bak
+*.orig
+
+# AI tools
+.claude/
 
 # Uploads
 client/dist/uploads/
