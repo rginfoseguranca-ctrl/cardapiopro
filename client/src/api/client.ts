@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { isElectron, electronApi } from './electron-adapter'
 
 const baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
 export const api = axios.create({ baseURL })
@@ -8,6 +9,8 @@ api.interceptors.request.use(config => {
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
+
+export const isDesktop = isElectron()
 
 export interface Product {
   id: string
@@ -101,42 +104,58 @@ export interface Review {
 
 // Products
 export async function getProducts(): Promise<Product[]> {
+  if (isDesktop) return electronApi.products.list()
   const { data } = await api.get('/products')
   return data
 }
 export async function getAllProducts(): Promise<Product[]> {
+  if (isDesktop) return electronApi.products.listAll()
   const { data } = await api.get('/products/all')
   return data
 }
 export async function createProduct(product: { name: string; price: number; description?: string; pricePromotional?: number; image?: string; categoryId?: string; isHighlighted?: boolean; isAvailable?: boolean; ingredients?: string[] }): Promise<Product> {
+  if (isDesktop) return electronApi.products.create(product)
   const { data } = await api.post('/products', product)
   return data
 }
 export async function updateProduct(id: string, updates: Partial<Product>) {
+  if (isDesktop) return electronApi.products.update(id, updates)
   const { data } = await api.put(`/products/${id}`, updates)
   return data
 }
 export async function getCategories(): Promise<Category[]> {
+  if (isDesktop) return electronApi.categories.list()
   const { data } = await api.get('/products/categories')
   return data
 }
 export async function createCategory(cat: { name: string; icon?: string }): Promise<Category> {
+  if (isDesktop) return electronApi.categories.create(cat)
   const { data } = await api.post('/products/categories', cat)
   return data
 }
 export async function updateCategory(id: string, cat: { name?: string; icon?: string; order?: number; isActive?: boolean }): Promise<Category> {
+  if (isDesktop) return electronApi.categories.update(id, cat)
   const { data } = await api.put(`/products/categories/${id}`, cat)
   return data
 }
 export async function deleteCategory(id: string) {
+  if (isDesktop) return electronApi.categories.delete(id)
   const { data } = await api.delete(`/products/categories/${id}`)
   return data
 }
 export async function getHighlightedProducts(): Promise<Product[]> {
+  if (isDesktop) {
+    const all = await electronApi.products.listAll()
+    return all.filter(p => p.isHighlighted)
+  }
   const { data } = await api.get('/products/highlighted')
   return data
 }
 export async function uploadProductImage(file: File): Promise<{ imageUrl: string }> {
+  if (isDesktop) {
+    const path = window.electronAPI!.getPath('userData')
+    return { imageUrl: `local://images/${file.name}` }
+  }
   const formData = new FormData()
   formData.append('image', file)
   const { data } = await api.post('/products/upload-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
@@ -159,34 +178,44 @@ export async function createOrder(order: {
   couponCode?: string
   couponDiscount?: number
 }): Promise<Order> {
+  if (isDesktop) return electronApi.orders.create(order)
   const { data } = await api.post('/orders', order)
   return data
 }
 export async function getOrders(): Promise<Order[]> {
+  if (isDesktop) return electronApi.orders.list()
   const { data } = await api.get('/orders')
   return data
 }
 export async function updateOrderStatus(id: string, status: string): Promise<Order> {
+  if (isDesktop) return electronApi.orders.updateStatus(id, status)
   const { data } = await api.patch(`/orders/${id}/status`, { status })
   return data
 }
 
 // Dashboard
 export async function getDashboardSummary(): Promise<DashboardSummary> {
+  if (isDesktop) return electronApi.dashboard.summary()
   const { data } = await api.get('/dashboard/summary')
   return data
 }
 
 // Customers (CRM)
 export async function getCustomers(search?: string, tag?: string, minOrders?: number): Promise<Customer[]> {
+  if (isDesktop) return electronApi.customers.list()
   const { data } = await api.get('/customers', { params: { search, tag, minOrders } })
   return data
 }
 export async function getCustomer(id: string): Promise<Customer & { orders: Order[]; cashback: any[]; loyaltyBalance: number }> {
+  if (isDesktop) {
+    const customer = await electronApi.customers.get(id)
+    return { ...customer, orders: [], cashback: [], loyaltyBalance: 0 }
+  }
   const { data } = await api.get(`/customers/${id}`)
   return data
 }
 export async function updateCustomer(id: string, updates: { notes?: string; tags?: string[] }) {
+  if (isDesktop) return electronApi.customers.upsert({ id, ...updates })
   const { data } = await api.patch(`/customers/${id}`, updates)
   return data
 }
@@ -229,14 +258,17 @@ export async function getLoyaltyPoints(customerId: string) {
   return data
 }
 export async function getLoyaltyRewards() {
+  if (isDesktop) return electronApi.loyalty.rewards()
   const { data } = await api.get('/loyalty/rewards')
   return data
 }
 export async function createLoyaltyReward(reward: { name: string; description?: string; pointsRequired: number }) {
+  if (isDesktop) return electronApi.loyalty.createReward(reward)
   const { data } = await api.post('/loyalty/rewards', reward)
   return data
 }
 export async function deleteLoyaltyReward(id: string) {
+  if (isDesktop) return electronApi.loyalty.deleteReward(id)
   const { data } = await api.delete(`/loyalty/rewards/${id}`)
   return data
 }
@@ -295,24 +327,29 @@ export async function setIntegration(key: string, value: string) {
 
 // Cash Register
 export async function getCashRegister() {
+  if (isDesktop) return electronApi.cashRegister.get()
   const { data } = await api.get('/cash-register')
   return data
 }
 export async function addCashEntry(entry: { type: string; description: string; amount: number; paymentMethod?: string }) {
+  if (isDesktop) return electronApi.cashRegister.addEntry(entry)
   const { data } = await api.post('/cash-register', entry)
   return data
 }
 
 // Inventory
 export async function getInventory() {
+  if (isDesktop) return electronApi.inventory.list()
   const { data } = await api.get('/inventory')
   return data
 }
 export async function upsertInventoryProduct(item: { productId?: string; productName: string; quantity?: number; unit?: string; minQuantity?: number }) {
+  if (isDesktop) return electronApi.inventory.upsert(item)
   const { data } = await api.post('/inventory/product', item)
   return data
 }
 export async function adjustInventory(productId: string, type: 'in' | 'out', quantity: number, description?: string) {
+  if (isDesktop) return electronApi.inventory.adjust(productId, type, quantity, description || '')
   const { data } = await api.post('/inventory/adjust', { productId, type, quantity, description })
   return data
 }
@@ -357,14 +394,17 @@ export async function deletePrinter(id: string) {
 
 // Fiado
 export async function getFiado() {
+  if (isDesktop) return electronApi.fiado.list()
   const { data } = await api.get('/fiado')
   return data
 }
 export async function createFiado(debt: { customerId?: string; customerName: string; customerPhone?: string; orderId?: string; amount: number; dueDate?: string; notes?: string }) {
+  if (isDesktop) return electronApi.fiado.create(debt)
   const { data } = await api.post('/fiado', debt)
   return data
 }
 export async function payFiado(id: string, amount?: number) {
+  if (isDesktop) return electronApi.fiado.pay(id)
   const { data } = await api.patch(`/fiado/${id}/pay`, { amount })
   return data
 }
@@ -431,10 +471,12 @@ export interface StoreSettings {
   avisos?: { id: string; title: string; description: string; imageUrl: string; active: boolean }[]
 }
 export async function getStoreSettings(): Promise<StoreSettings> {
+  if (isDesktop) return electronApi.store.get()
   const { data } = await api.get('/store')
   return data
 }
 export async function updateStoreSettings(settings: Partial<StoreSettings>) {
+  if (isDesktop) return electronApi.store.update(settings)
   const { data } = await api.put('/store', settings)
   return data
 }
@@ -445,6 +487,7 @@ export async function getPixQrCode(amount: number, orderId: string) {
 
 // Coupons
 export async function getCoupons() {
+  if (isDesktop) return electronApi.coupons.list()
   const { data } = await api.get('/coupons')
   return data
 }
@@ -454,6 +497,7 @@ export async function createCoupon(coupon: {
   minOrderValue?: number; maxUses?: number
   startsAt?: string; expiresAt?: string
 }) {
+  if (isDesktop) return electronApi.coupons.create(coupon)
   const { data } = await api.post('/coupons', coupon)
   return data
 }
@@ -466,22 +510,26 @@ export async function applyCoupon(id: string) {
   return data
 }
 export async function deleteCoupon(id: string) {
+  if (isDesktop) return electronApi.coupons.delete(id)
   const { data } = await api.delete(`/coupons/${id}`)
   return data
 }
 
 // Tables (admin)
 export async function getTables() {
+  if (isDesktop) return electronApi.tables.list()
   const token = localStorage.getItem('token')
   const { data } = await api.get('/tables', { headers: { Authorization: `Bearer ${token}` } })
   return data
 }
 export async function createTable(number: number) {
+  if (isDesktop) return electronApi.tables.create(number)
   const token = localStorage.getItem('token')
   const { data } = await api.post('/tables', { number }, { headers: { Authorization: `Bearer ${token}` } })
   return data
 }
 export async function deleteTable(id: string) {
+  if (isDesktop) return electronApi.tables.delete(id)
   const token = localStorage.getItem('token')
   const { data } = await api.delete(`/tables/${id}`, { headers: { Authorization: `Bearer ${token}` } })
   return data
@@ -510,11 +558,13 @@ export interface Complement {
   createdAt: string
 }
 export async function getComplementGroups(productId?: string): Promise<ComplementGroup[]> {
+  if (isDesktop) return electronApi.complements.listGroups(productId)
   const url = productId ? `/complements/groups/${productId}` : '/complements/groups'
   const { data } = await api.get(url)
   return data
 }
 export async function createComplementGroup(data: { name: string; type?: string; min?: number; max?: number; productId: string; isRequired?: boolean }) {
+  if (isDesktop) return electronApi.complements.createGroup(data)
   const { data: res } = await api.post('/complements/groups', data)
   return res
 }
@@ -523,10 +573,12 @@ export async function updateComplementGroup(id: string, data: { name?: string; t
   return res
 }
 export async function deleteComplementGroup(id: string) {
+  if (isDesktop) return electronApi.complements.deleteGroup(id)
   const { data } = await api.delete(`/complements/groups/${id}`)
   return data
 }
 export async function createComplement(data: { groupId: string; name: string; price?: number; maxExtra?: number }) {
+  if (isDesktop) return electronApi.complements.createItem(data)
   const { data: res } = await api.post('/complements', data)
   return res
 }
@@ -535,6 +587,7 @@ export async function updateComplement(id: string, data: { name?: string; price?
   return res
 }
 export async function deleteComplement(id: string) {
+  if (isDesktop) return electronApi.complements.deleteItem(id)
   const { data } = await api.delete(`/complements/${id}`)
   return data
 }

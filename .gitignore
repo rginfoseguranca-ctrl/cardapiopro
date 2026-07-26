@@ -46,3 +46,7 @@ coverage/
 mobile/.expo/
 mobile/android/
 mobile/ios/
+
+# Electron build output
+desktop/out/
+desktop/dist/

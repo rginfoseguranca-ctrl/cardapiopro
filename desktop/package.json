@@ -1,0 +1,27 @@
+{
+  "name": "cardapiopro-desktop",
+  "version": "1.0.0",
+  "description": "CardápioPro Desktop - PDV Offline-First",
+  "main": "./out/main/index.js",
+  "author": "CardápioPro",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "electron-vite build && electron-builder --win",
+    "package:portable": "electron-vite build && electron-builder --win -- portable"
+  },
+  "dependencies": {
+    "sql.js": "^1.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@vitejs/plugin-react": "^4.4.1",
+    "electron": "^35.3.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.2"
+  }
+}
