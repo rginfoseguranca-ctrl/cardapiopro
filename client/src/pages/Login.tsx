@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { api } from '../api/client'
+import { loginAuth } from '../api/client'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -16,9 +16,13 @@ export default function Login() {
     setLoading(true)
     setError('')
     try {
-      const { data } = await api.post('/auth/login', { email, password })
-      login(data.token, data.user, data.mustChangePassword)
-      navigate('/dashboard')
+      const data = await loginAuth(email, password)
+      if (data.error) {
+        setError(data.error)
+      } else {
+        login(data.token, data.user, data.mustChangePassword)
+        navigate('/dashboard')
+      }
     } catch {
       setError('Email ou senha inválidos')
     } finally {

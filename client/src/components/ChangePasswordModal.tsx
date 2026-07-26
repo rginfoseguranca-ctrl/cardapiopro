@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { api } from '../api/client'
+import { changePassword } from '../api/client'
 
 export default function ChangePasswordModal() {
   const { mustChangePassword, setMustChangePassword } = useAuth()
@@ -19,8 +19,12 @@ export default function ChangePasswordModal() {
     if (newPass !== confirm) { setError('As senhas não conferem'); return }
     setLoading(true)
     try {
-      await api.post('/auth/change-password', { currentPassword: current, newPassword: newPass })
-      setMustChangePassword(false)
+      const result = await changePassword(current, newPass)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        setMustChangePassword(false)
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erro ao alterar senha')
     } finally {

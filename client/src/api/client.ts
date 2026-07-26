@@ -12,6 +12,198 @@ api.interceptors.request.use(config => {
 
 export const isDesktop = isElectron()
 
+if (isDesktop) {
+  const w = window.electronAPI!
+  const methods: Record<string, (...args: any[]) => Promise<any>> = {}
+
+  function matchRoute(method: string, url: string, data?: any, params?: any): Promise<any> | null {
+    const clean = url.replace(/^\/api/, '').replace(/^\//, '')
+
+    if (method === 'GET' && clean === 'products/all') return w.products.listAll()
+    if (method === 'GET' && clean === 'products') return w.products.list()
+    if (method === 'GET' && clean === 'products/highlighted') return w.products.listAll().then((p: any[]) => p.filter((x: any) => x.is_highlighted || x.isHighlighted))
+    if (method === 'GET' && clean.startsWith('products/categories')) return w.categories.list()
+    if (method === 'GET' && clean.startsWith('products/')) return w.products.get(clean.split('/')[1])
+    if (method === 'POST' && clean === 'products') return w.products.create(data)
+    if (method === 'POST' && clean === 'products/upload-image') return { imageUrl: `local://images/${data?.name || 'upload'}` }
+    if (method === 'PUT' && clean.startsWith('products/categories/')) return w.categories.update(clean.split('/')[2], data)
+    if (method === 'POST' && clean === 'products/categories') return w.categories.create(data)
+    if (method === 'DELETE' && clean.startsWith('products/categories/')) return w.categories.delete(clean.split('/')[2])
+    if (method === 'PUT' && clean.startsWith('products/')) return w.products.update(clean.split('/')[1], data)
+
+    if (method === 'GET' && clean === 'orders') return w.orders.list()
+    if (method === 'GET' && clean.startsWith('orders/')) return w.orders.get(clean.split('/')[1])
+    if (method === 'POST' && clean === 'orders') return w.orders.create(data)
+    if (method === 'PATCH' && clean.match(/^orders\/[^/]+\/status$/)) return w.orders.updateStatus(clean.split('/')[1], data.status)
+
+    if (method === 'GET' && clean === 'dashboard/summary') return w.dashboard.summary()
+
+    if (method === 'GET' && clean === 'store') return w.store.get()
+    if (method === 'PUT' && clean === 'store') return w.store.update(data)
+    if (method === 'POST' && clean === 'store/logo') return { logoUrl: '' }
+    if (method === 'GET' && clean.match(/^store\/pix\//)) return { qrCode: null }
+
+    if (method === 'GET' && clean === 'tables') return w.tables.list()
+    if (method === 'POST' && clean === 'tables') return w.tables.create(data.number)
+    if (method === 'DELETE' && clean.startsWith('tables/')) return w.tables.delete(clean.split('/')[1])
+
+    if (method === 'GET' && clean === 'cash-register') return w.cashRegister.get()
+    if (method === 'POST' && clean === 'cash-register') return w.cashRegister.addEntry(data)
+
+    if (method === 'GET' && clean === 'inventory') return w.inventory.list()
+    if (method === 'POST' && clean === 'inventory/product') return w.inventory.upsert(data)
+    if (method === 'POST' && clean === 'inventory/adjust') return w.inventory.adjust(data.productId, data.type, data.quantity, data.description || '')
+
+    if (method === 'GET' && clean === 'fiado') return w.fiado.list()
+    if (method === 'POST' && clean === 'fiado') return w.fiado.create(data)
+    if (method === 'PATCH' && clean.match(/^fiado\/[^/]+\/pay$/)) return w.fiado.pay(clean.split('/')[1])
+
+    if (method === 'GET' && clean === 'coupons') return w.coupons.list()
+    if (method === 'POST' && clean === 'coupons') return w.coupons.create(data)
+    if (method === 'POST' && clean === 'coupons/validate') return { valid: false, message: 'Cupom indisponível offline' }
+    if (method === 'PATCH' && clean.match(/^coupons\/[^/]+\/use$/)) return null
+    if (method === 'DELETE' && clean.startsWith('coupons/')) return w.coupons.delete(clean.split('/')[1])
+
+    if (method === 'GET' && clean === 'loyalty/rewards') return w.loyalty.rewards()
+    if (method === 'POST' && clean === 'loyalty/rewards') return w.loyalty.createReward(data)
+    if (method === 'DELETE' && clean.startsWith('loyalty/rewards/')) return w.loyalty.deleteReward(clean.split('/')[2])
+    if (method === 'GET' && clean.startsWith('loyalty/points/')) return { balance: 0 }
+
+    if (method === 'GET' && clean === 'complements/groups') return w.complements.listGroups()
+    if (method === 'GET' && clean.startsWith('complements/groups/')) return w.complements.listGroups(clean.split('/')[2])
+    if (method === 'POST' && clean === 'complements/groups') return w.complements.createGroup(data)
+    if (method === 'DELETE' && clean.startsWith('complements/groups/')) return w.complements.deleteGroup(clean.split('/')[2])
+    if (method === 'POST' && clean === 'complements') return w.complements.createItem(data)
+    if (method === 'POST' && clean === 'complements/price') return { price: 0 }
+    if (method === 'PUT' && clean.startsWith('complements/')) return w.complements.createItem({ ...data, id: clean.split('/')[1] })
+    if (method === 'DELETE' && clean.startsWith('complements/')) return w.complements.deleteItem(clean.split('/')[1])
+
+    if (method === 'GET' && clean === 'customers') return w.customers.list()
+    if (method === 'GET' && clean.startsWith('customers/')) {
+      const parts = clean.split('/')
+      if (parts[1] === 'public') return []
+      return w.customers.get(parts[1])
+    }
+    if (method === 'PATCH' && clean.startsWith('customers/')) return w.customers.upsert({ id: clean.split('/')[1], ...data })
+
+    if (method === 'GET' && clean === 'reviews/product/' + (params?.productId || '')) return { reviews: [], averageRating: 0 }
+    if (method === 'POST' && clean === 'reviews') return { id: 'local-' + Date.now(), ...data }
+
+    if (method === 'GET' && clean.match(/^finance\//)) return []
+    if (method === 'POST' && clean.match(/^finance\//)) return { id: 'local-' + Date.now(), ...data }
+    if (method === 'DELETE' && clean.match(/^finance\//)) return null
+    if (method === 'PATCH' && clean.match(/^finance\//)) return null
+
+    if (method === 'GET' && clean === 'drivers') return []
+    if (method === 'GET' && clean === 'drivers/available') return []
+    if (method === 'POST' && clean === 'drivers') return { id: 'local-' + Date.now(), ...data, is_active: true }
+    if (method === 'PUT' && clean.startsWith('drivers/')) return data
+    if (method === 'DELETE' && clean.startsWith('drivers/')) return null
+    if (method === 'PATCH' && clean.startsWith('drivers/')) return data
+
+    if (method === 'GET' && clean === 'stores') return []
+    if (method === 'POST' && clean === 'stores') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'PUT' && clean.startsWith('stores/')) return data
+    if (method === 'DELETE' && clean.startsWith('stores/')) return null
+
+    if (method === 'GET' && clean.startsWith('supplies/')) return []
+    if (method === 'POST' && clean.startsWith('supplies/')) return { id: 'local-' + Date.now(), ...data }
+    if (method === 'PUT' && clean.startsWith('supplies/')) return data
+    if (method === 'DELETE' && clean.startsWith('supplies/')) return null
+
+    if (method === 'GET' && clean.startsWith('delivery')) return []
+    if (method === 'POST' && clean.startsWith('delivery')) return { id: 'local-' + Date.now(), ...data }
+    if (method === 'PUT' && clean.startsWith('delivery')) return data
+    if (method === 'DELETE' && clean.startsWith('delivery')) return null
+    if (method === 'PATCH' && clean.startsWith('delivery')) return data
+
+    if (method === 'GET' && clean === 'printers') return []
+    if (method === 'POST' && clean === 'printers') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'DELETE' && clean.startsWith('printers/')) return null
+
+    if (method === 'GET' && clean === 'campaigns') return []
+    if (method === 'POST' && clean === 'campaigns') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'DELETE' && clean.startsWith('campaigns/')) return null
+
+    if (method === 'GET' && clean.startsWith('cashback/')) return { balance: 0 }
+    if (method === 'POST' && clean === 'cashback/settings') return null
+
+    if (method === 'GET' && clean === 'abandoned') return []
+    if (method === 'POST' && clean === 'abandoned') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'PATCH' && clean.startsWith('abandoned/')) return data
+
+    if (method === 'GET' && clean === 'integrations') return {}
+    if (method === 'POST' && clean === 'integrations') return null
+
+    if (method === 'GET' && clean === 'invoices') return []
+    if (method === 'POST' && clean === 'invoices') return { id: 'local-' + Date.now(), ...data }
+
+    if (method === 'GET' && clean === 'blog') return []
+    if (method === 'GET' && clean === 'blog/all') return []
+    if (method === 'GET' && clean.startsWith('blog/')) return null
+    if (method === 'POST' && clean === 'blog') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'PATCH' && clean.startsWith('blog/')) return data
+    if (method === 'DELETE' && clean.startsWith('blog/')) return null
+
+    if (method === 'GET' && clean === 'partners') return []
+    if (method === 'POST' && clean === 'partners') return { id: 'local-' + Date.now(), ...data }
+
+    if (method === 'GET' && clean === 'leads') return []
+    if (method === 'POST' && clean === 'leads') return { id: 'local-' + Date.now(), ...data }
+
+    if (method === 'GET' && clean === 'saas/stats') return { stores: { total: 0 }, users: { total: 0 }, orders: { total: 0, recent: [] }, subscriptions: { active: 0, trialing: 0, canceled: 0 }, revenue: { total: 0 } }
+    if (method === 'GET' && clean === 'saas/stores') return []
+    if (method === 'GET' && clean.startsWith('saas/stores/')) return null
+    if (method === 'PUT' && clean.startsWith('saas/stores/')) return data
+    if (method === 'DELETE' && clean.startsWith('saas/stores/')) return null
+    if (method === 'GET' && clean === 'saas/subscriptions') return []
+    if (method === 'GET' && clean === 'saas/analytics') return { revenueByDay: [], ordersByStatus: [], topStores: [], deliveryVsPickup: [], monthlyRevenue: [], storeLimits: [] }
+
+    if (method === 'GET' && clean.startsWith('viacep/')) return null
+
+    if (method === 'POST' && clean === 'auth/login') return w.auth.login(data.email, data.password)
+    if (method === 'POST' && clean === 'auth/register') return w.auth.register(data)
+    if (method === 'GET' && clean === 'auth/me') return w.auth.me(params?.token || localStorage.getItem('token') || '')
+    if (method === 'POST' && clean === 'auth/change-password') return w.auth.changePassword(data.currentPassword, data.newPassword)
+
+    if (method === 'POST' && clean === 'chat') return { reply: 'Chatbot indisponível no modo offline.' }
+
+    return null
+  }
+
+  const origGet = api.get.bind(api)
+  const origPost = api.post.bind(api)
+  const origPut = api.put.bind(api)
+  const origDelete = api.delete.bind(api)
+  const origPatch = api.patch.bind(api)
+
+  api.get = async (url: string, config?: any) => {
+    const result = await matchRoute('GET', url, undefined, config?.params)
+    if (result !== null && result !== undefined) return { data: result }
+    return origGet(url, config)
+  }
+  api.post = async (url: string, data?: any, config?: any) => {
+    const result = await matchRoute('POST', url, data, config?.params)
+    if (result !== null && result !== undefined) return { data: result }
+    return origPost(url, data, config)
+  }
+  api.put = async (url: string, data?: any, config?: any) => {
+    const result = await matchRoute('PUT', url, data, config?.params)
+    if (result !== null && result !== undefined) return { data: result }
+    return origPut(url, data, config)
+  }
+  api.delete = async (url: string, config?: any) => {
+    const result = await matchRoute('DELETE', url, undefined, config?.params)
+    if (result !== null && result !== undefined) return { data: result }
+    return origDelete(url, config)
+  }
+  api.patch = async (url: string, data?: any, config?: any) => {
+    const result = await matchRoute('PATCH', url, data, config?.params)
+    if (result !== null && result !== undefined) return { data: result }
+    return origPatch(url, data, config)
+  }
+}
+
 export interface Product {
   id: string
   name: string
