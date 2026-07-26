@@ -2,42 +2,36 @@ import { useAuth } from '../hooks/useAuth'
 
 const tabLabels: Record<string, string> = {
   dashboard: 'Painel', orders: 'Gestão de Pedidos', produtos: 'Produtos', crm: 'Clientes',
-  caixa: 'Caixa', fiado: 'Fiado', notas: 'NF-e',
-  estoque: 'Estoque', impressoras: 'Impressoras', pdv: 'PDV', rotas: 'Rotas',
-  coupons: 'Cupons', loyalty: 'Fidelidade', cashback: 'Cashback',
-  campaigns: 'Campanhas', abandoned: 'Carrinhos',
-  store: 'Config. Loja', tables: 'Mesas e Comandas', integrations: 'Integrações',
-  blog: 'Blog', partners: 'Parceiros', leads: 'Leads',
-  'empresa-avisos': 'Avisos', 'empresa-perfil': 'Perfil', 'empresa-horarios': 'Horários',
-  'empresa-pagamentos': 'Formas de Pagamento', 'empresa-campos': 'Campos Personalizados',
-  'opcoes': 'Opções', 'filtros-avancados': 'Filtros Avançados', 'estoque-simples': 'Estoque Simples',
+  caixa: 'Caixa', fiado: 'Fiado',
+  estoque: 'Estoque', impressoras: 'Impressoras', rotas: 'Rotas',
+  coupons: 'Cupons', loyalty: 'Fidelidade',
+  campaigns: 'Campanhas WhatsApp',
+  tables: 'Mesas e Comandas', integrations: 'Integrações',
+  'empresa-avisos': 'Avisos', 'empresa-perfil': 'Perfil da Empresa', 'empresa-horarios': 'Horários',
+  'empresa-pagamentos': 'Formas de Pagamento',
+  'opcoes': 'Opções', 'filtros-avancados': 'Filtros Avançados',
   'combos': 'Combos', 'fiado-dividas': 'Controle de Dívidas', 'fiado-visao-geral': 'Visão Geral',
-  'config-geral': 'Configurações Gerais', 'personalizar-site': 'Personalizar Site',
-  'config-impressao': 'Impressão', 'config-mesas': 'Mesas/Comandas', 'agendamento': 'Agendamento',
-  'usuarios': 'Usuários', 'assinaturas': 'Assinaturas', 'multiloja': 'Link de Multilojas',
+  'config-geral': 'Geral', 'personalizar-site': 'Personalizar Site',
+  'config-impressao': 'Impressão', 'agendamento': 'Agendamento',
+  'usuarios': 'Usuários',
   'historico': 'Histórico de Pedidos', 'avaliacoes': 'Avaliações',
-  'segmentacao': 'Segmentação de Clientes', 'site-analytics': 'Site Analytics',
   'areas-entrega': 'Área de Entrega', 'entregadores': 'Entregadores',
   'financeiro-dashboard': 'Dashboard Financeiro', 'financeiro-lancamentos': 'Lançamentos',
-  'financeiro-fluxo': 'Fluxo de Caixa', 'estoque-avancado': 'Estoque Avançado',
-  'desempenho-vendas': 'Vendas', 'desempenho-clientes': 'Clientes', 'desempenho-rfv': 'Base de Clientes (RFV)',
-  'desempenho-catalogo': 'Catálogo', 'desempenho-entregas': 'Entregas', 'desempenho-descontos': 'Descontos',
-  'desempenho-cancelamentos': 'Cancelamentos', 'desempenho-visao-geral': 'Visão Geral',
+  'financeiro-fluxo': 'Fluxo de Caixa',
 }
 
 const sectionParents: Record<string, string> = {
   'fiado-dividas': 'Fiado', 'fiado-visao-geral': 'Fiado',
   'config-geral': 'Configurações', 'personalizar-site': 'Configurações',
-  'config-impressao': 'Configurações', 'config-mesas': 'Configurações',
-  'agendamento': 'Configurações', 'integrations': 'Configurações',
-  'usuarios': 'Administrativo', 'assinaturas': 'Administrativo', 'multiloja': 'Administrativo',
-  'empresa-avisos': 'Minha Empresa', 'empresa-perfil': 'Minha Empresa', 'empresa-horarios': 'Minha Empresa',
-  'empresa-pagamentos': 'Minha Empresa', 'empresa-campos': 'Minha Empresa',
-  'produtos': 'Catálogo', 'complements': 'Catálogo', 'opcoes': 'Catálogo', 'filtros-avancados': 'Catálogo',
-  'estoque-simples': 'Catálogo', 'combos': 'Catálogo',
-  'areas-entrega': 'Delivery', 'entregadores': 'Delivery',
-  'segmentacao': 'Marketing', 'site-analytics': 'Marketing', 'campaigns': 'Marketing',
-  'loyalty': 'Fidelidade', 'cashback': 'Fidelidade',
+  'config-impressao': 'Configurações', 'agendamento': 'Configurações',
+  'integrations': 'Configurações', 'usuarios': 'Configurações', 'historico': 'Configurações',
+  'empresa-avisos': 'Empresa', 'empresa-perfil': 'Empresa', 'empresa-horarios': 'Empresa',
+  'empresa-pagamentos': 'Empresa', 'impressoras': 'Empresa',
+  'produtos': 'Catálogo', 'complements': 'Catálogo', 'opcoes': 'Catálogo',
+  'filtros-avancados': 'Catálogo', 'combos': 'Catálogo', 'estoque': 'Catálogo',
+  'areas-entrega': 'Delivery', 'entregadores': 'Delivery', 'rotas': 'Delivery',
+  'campaigns': 'Marketing', 'coupons': 'Marketing', 'loyalty': 'Marketing',
+  'financeiro-dashboard': 'Financeiro', 'financeiro-lancamentos': 'Financeiro', 'financeiro-fluxo': 'Financeiro',
 }
 
 export default function DashboardHeader({
@@ -65,8 +59,7 @@ export default function DashboardHeader({
         <h1 className="dashboard-title">{label === 'Painel' ? `${storeIcon} ${storeName}` : label}</h1>
       </div>
       <div className="dashboard-header-actions">
-        <a href="/kds" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">👨‍🍳 KDS</a>
-        <a href="/" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">🔗 Site</a>
+        <a href="/" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">🔗 Ver Cardápio</a>
         <button className="btn btn-sm btn-outline" style={{ position: 'relative', fontSize: '1.1rem', padding: '6px 10px' }}>
           🔔
           {pendingCount > 0 && (

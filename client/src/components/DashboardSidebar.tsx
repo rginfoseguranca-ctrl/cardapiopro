@@ -15,65 +15,6 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
       { key: 'tables', icon: '🪑', label: 'Mesas e Comandas' },
       { key: 'kds', icon: '🍳', label: 'KDS' },
       { key: 'caixa', icon: '💰', label: 'Caixa' },
-    ]
-  },
-  {
-    title: 'Desempenho',
-    items: [
-      {
-        key: 'desempenho', icon: '📈', label: 'Desempenho',
-        children: [
-          { key: 'desempenho-vendas', label: 'Vendas' },
-          { key: 'desempenho-clientes', label: 'Clientes' },
-          { key: 'desempenho-rfv', label: 'Base de Clientes (RFV)' },
-          { key: 'desempenho-catalogo', label: 'Catálogo' },
-          { key: 'desempenho-entregas', label: 'Entregas' },
-          { key: 'desempenho-descontos', label: 'Descontos' },
-          { key: 'desempenho-cancelamentos', label: 'Cancelamentos' },
-          { key: 'desempenho-visao-geral', label: 'Visão Geral' },
-        ]
-      },
-      { key: 'historico', icon: '📜', label: 'Histórico de Pedidos' },
-    ]
-  },
-  {
-    title: 'Empresa',
-    items: [
-      {
-        key: 'minha-empresa', icon: '🏢', label: 'Minha Empresa',
-        children: [
-          { key: 'empresa-perfil', label: 'Perfil' },
-          { key: 'empresa-horarios', label: 'Horários' },
-          { key: 'empresa-pagamentos', label: 'Formas de Pagamento' },
-          { key: 'empresa-avisos', label: 'Avisos' },
-          { key: 'empresa-campos', label: 'Campos Personalizados' },
-        ]
-      },
-      {
-        key: 'catalogo', icon: '🍔', label: 'Catálogo',
-        children: [
-          { key: 'produtos', label: 'Produtos' },
-          { key: 'complements', label: 'Complementos' },
-          { key: 'opcoes', label: 'Opções' },
-          { key: 'filtros-avancados', label: 'Filtros Avançados' },
-          { key: 'estoque-simples', label: 'Estoque Simples' },
-          { key: 'combos', label: 'Combos' },
-        ]
-      },
-      {
-        key: 'delivery', icon: '🚚', label: 'Delivery',
-        children: [
-          { key: 'areas-entrega', label: 'Área de Entrega' },
-          { key: 'entregadores', label: 'Entregadores' },
-        ]
-      },
-    ]
-  },
-  {
-    title: 'Clientes e Relacionamento',
-    items: [
-      { key: 'crm', icon: '👥', label: 'Clientes' },
-      { key: 'avaliacoes', icon: '⭐', label: 'Avaliações' },
       {
         key: 'fiado', icon: '💸', label: 'Fiado',
         children: [
@@ -84,73 +25,67 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
     ]
   },
   {
-    title: 'Administrativo',
+    title: 'Catálogo',
     items: [
-      {
-        key: 'admin', icon: '👥', label: 'Administrativo',
-        children: [
-          { key: 'usuarios', label: 'Usuários' },
-          { key: 'assinaturas', label: 'Assinaturas' },
-          { key: 'multiloja', label: 'Link de Multilojas' },
-        ]
-      },
-      {
-        key: 'config', icon: '⚙️', label: 'Configurações',
-        children: [
-          { key: 'config-geral', label: 'Configurações Gerais' },
-          { key: 'personalizar-site', label: 'Personalizar Site' },
-          { key: 'config-impressao', label: 'Impressão' },
-          { key: 'agendamento', label: 'Agendamento' },
-          { key: 'config-mesas', label: 'Mesas/Comandas' },
-          { key: 'integrations', label: 'Integrações' },
-        ]
-      },
+      { key: 'produtos', icon: '🍔', label: 'Produtos' },
+      { key: 'complements', icon: '🧩', label: 'Complementos' },
+      { key: 'opcoes', icon: '⚙️', label: 'Opções' },
+      { key: 'combos', icon: '📦', label: 'Combos' },
+      { key: 'estoque', icon: '📊', label: 'Estoque' },
+      { key: 'filtros-avancados', icon: '🔍', label: 'Filtros Avançados' },
     ]
   },
   {
-    title: 'Marketing e Vendas',
+    title: 'Delivery',
     items: [
-      {
-        key: 'marketing', icon: '📢', label: 'Food Marketing',
-        children: [
-          { key: 'campaigns', label: 'Campanhas WhatsApp' },
-          { key: 'segmentacao', label: 'Segmentação de Clientes' },
-          { key: 'site-analytics', label: 'Site Analytics' },
-        ]
-      },
-      { key: 'chatbot', icon: '🤖', label: 'Chatbot' },
+      { key: 'areas-entrega', icon: '🗺️', label: 'Área de Entrega' },
+      { key: 'entregadores', icon: '🚚', label: 'Entregadores' },
+      { key: 'rotas', icon: '📍', label: 'Rotas de Entrega' },
+    ]
+  },
+  {
+    title: 'Clientes',
+    items: [
+      { key: 'crm', icon: '👥', label: 'Clientes' },
+      { key: 'avaliacoes', icon: '⭐', label: 'Avaliações' },
+    ]
+  },
+  {
+    title: 'Marketing',
+    items: [
+      { key: 'campaigns', icon: '📢', label: 'Campanhas WhatsApp' },
       { key: 'coupons', icon: '🎫', label: 'Cupons de Desconto' },
-      {
-        key: 'fidelidade', icon: '🎯', label: 'Fidelidade',
-        children: [
-          { key: 'loyalty', label: 'Programa de Fidelidade' },
-          { key: 'cashback', label: 'Cashback' },
-        ]
-      },
+      { key: 'loyalty', icon: '🎯', label: 'Programa de Fidelidade' },
     ]
   },
   {
-    title: 'Módulos do Sistema',
+    title: 'Financeiro',
     items: [
-      { key: 'estoque-avancado', icon: '📦', label: 'Estoque Avançado' },
-      {
-        key: 'financeiro', icon: '📊', label: 'Módulo Financeiro',
-        children: [
-          { key: 'financeiro-dashboard', label: 'Dashboard Financeiro' },
-          { key: 'financeiro-lancamentos', label: 'Lançamentos' },
-          { key: 'financeiro-fluxo', label: 'Fluxo de Caixa' },
-        ]
-      },
-      { key: 'notas', icon: '📄', label: 'Módulo Fiscal (NF-e)' },
+      { key: 'financeiro-dashboard', icon: '📊', label: 'Dashboard Financeiro' },
+      { key: 'financeiro-lancamentos', icon: '💰', label: 'Lançamentos' },
+      { key: 'financeiro-fluxo', icon: '📈', label: 'Fluxo de Caixa' },
     ]
   },
   {
-    title: 'Conteúdo',
+    title: 'Empresa',
     items: [
-      { key: 'blog', icon: '📝', label: 'Blog' },
-      { key: 'partners', icon: '🤝', label: 'Parceiros' },
-      { key: 'leads', icon: '📋', label: 'Leads' },
-      { key: 'ver-links', icon: '🔗', label: 'Ver Meus Links' },
+      { key: 'empresa-perfil', icon: '🏢', label: 'Perfil da Empresa' },
+      { key: 'empresa-horarios', icon: '🕐', label: 'Horários' },
+      { key: 'empresa-pagamentos', icon: '💳', label: 'Formas de Pagamento' },
+      { key: 'empresa-avisos', icon: '📢', label: 'Avisos' },
+      { key: 'impressoras', icon: '🖨️', label: 'Impressoras' },
+    ]
+  },
+  {
+    title: 'Configurações',
+    items: [
+      { key: 'config-geral', icon: '⚙️', label: 'Geral' },
+      { key: 'personalizar-site', icon: '🎨', label: 'Personalizar Site' },
+      { key: 'config-impressao', icon: '🖨️', label: 'Impressão' },
+      { key: 'agendamento', icon: '📅', label: 'Agendamento' },
+      { key: 'integrations', icon: '🔌', label: 'Integrações' },
+      { key: 'historico', icon: '📜', label: 'Histórico de Pedidos' },
+      { key: 'usuarios', icon: '👤', label: 'Usuários' },
     ]
   },
 ]

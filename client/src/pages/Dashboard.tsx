@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getAbandonedCarts, getCashbackSettings, setCashbackSettings, getCustomerSegmentation, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getInvoices, issueInvoice, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getBlogPosts, createBlogPost, deleteBlogPost, getLeads, getPartners, getStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, uploadProductImage, getComplementGroups, createComplementGroup, createComplement, deleteComplement } from '../api/client'
+import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, uploadProductImage, getComplementGroups, createComplementGroup, createComplement, deleteComplement, getCustomerSegmentation } from '../api/client'
 import { exportToCSV, ordersToCSV } from '../utils/export'
 import React, { useState, useRef, useEffect } from 'react'
 import DashboardSidebar from '../components/DashboardSidebar'
@@ -23,15 +23,13 @@ import DesempenhoVisaoGeral from './DesempenhoVisaoGeral'
 import HistoricoPedidos from './HistoricoPedidos'
 import MinhaEmpresa from './MinhaEmpresa'
 import Avaliacoes from './Avaliacoes'
-import ChatbotPage from './Chatbot'
-import SiteAnalyticsPage from './SiteAnalytics'
-import VerMeusLinks from './VerMeusLinks'
+
 import PersonalizarSite from './PersonalizarSite'
 import AgendamentoPage from './Agendamento'
 import AreasEntrega from './AreasEntrega'
 import ConfigGeral from './ConfigGeral'
 import UsuariosPage from './Usuarios'
-import AssinaturasPage from './Assinaturas'
+
 import ImpressoraConfig from './ImpressoraConfig'
 import AvisosPanel from './AvisosPanel'
 import OpcoesPanel from './OpcoesPanel'
@@ -104,13 +102,8 @@ export default function Dashboard() {
   const { data: coupons } = useQuery({ queryKey: ['coupons'], queryFn: getCoupons, enabled: tab === 'coupons' })
   const { data: rewards } = useQuery({ queryKey: ['rewards'], queryFn: getLoyaltyRewards, enabled: tab === 'loyalty' })
   const { data: campaigns } = useQuery({ queryKey: ['campaigns'], queryFn: getCampaigns, enabled: tab === 'campaigns' })
-  const { data: abandoned } = useQuery({ queryKey: ['abandoned'], queryFn: getAbandonedCarts, enabled: tab === 'abandoned' })
-  const { data: cashbackSettings } = useQuery({ queryKey: ['cashback'], queryFn: getCashbackSettings, enabled: tab === 'cashback' })
   const { data: segmentation } = useQuery({ queryKey: ['segmentation'], queryFn: getCustomerSegmentation, enabled: tab === 'crm' })
   const { data: integrations } = useQuery({ queryKey: ['integrations'], queryFn: getIntegrations, enabled: tab === 'integrations' })
-  const { data: blogPosts } = useQuery({ queryKey: ['blogPosts'], queryFn: () => getBlogPosts(true), enabled: tab === 'blog' })
-  const { data: leads } = useQuery({ queryKey: ['leads'], queryFn: getLeads, enabled: tab === 'leads' })
-  const { data: partners } = useQuery({ queryKey: ['partners'], queryFn: getPartners, enabled: tab === 'partners' })
   const { data: storeSettings } = useQuery({ queryKey: ['storeSettings'], queryFn: getStoreSettings })
 
   const createTableMut = useMutation({ mutationFn: createTable, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tables'] }); setNewTableNum('') } })
@@ -190,11 +183,10 @@ export default function Dashboard() {
                   {[
                     { tab: 'orders', icon: '📋', label: 'Pedidos' },
                     { tab: 'produtos', icon: '🍔', label: 'Cardápio' },
-                    { tab: 'desempenho-vendas', icon: '📈', label: 'Vendas' },
-                    { tab: 'crm', icon: '👥', label: 'Clientes' },
                     { tab: 'caixa', icon: '💰', label: 'Caixa' },
+                    { tab: 'crm', icon: '👥', label: 'Clientes' },
+                    { tab: 'impressoras', icon: '🖨️', label: 'Impressoras' },
                     { tab: 'config-geral', icon: '⚙️', label: 'Configurações' },
-                    { tab: 'impressoras-vincular', icon: '🖨️', label: 'Impressoras' },
                   ].map(item => (
                     <button key={item.tab} className="btn btn-outline btn-sm" onClick={() => setTab(item.tab)}>
                       {item.icon} {item.label}
@@ -207,8 +199,7 @@ export default function Dashboard() {
                 <h3 className="font-semibold mb-sm" style={{ fontSize: '.9rem' }}>🆕 Atalhos</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <a href="/kds" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">👨‍🍳 Abrir KDS Cozinha</a>
-                  <a href="/" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">🔗 Ver Cardápio</a>
-                  <a href="/dashboard/customers" className="btn btn-outline btn-sm">👥 Gerenciar Clientes</a>
+                  <a href="/cardapio" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">🔗 Ver Cardápio</a>
                 </div>
               </DashboardCard>
             </div>
@@ -237,61 +228,39 @@ export default function Dashboard() {
         )}
 
         {tab === 'tables' && <TablesPanel tables={tables} createTableMut={createTableMut} deleteTableMut={deleteTableMut} newTableNum={newTableNum} setNewTableNum={setNewTableNum} />}
-        {tab === 'config-mesas' && <TablesPanel tables={tables} createTableMut={createTableMut} deleteTableMut={deleteTableMut} newTableNum={newTableNum} setNewTableNum={setNewTableNum} />}
         {tab === 'coupons' && <CouponsPanel coupons={coupons} deleteCouponMut={deleteCouponMut} />}
         {tab === 'loyalty' && <LoyaltyPanel rewards={rewards} />}
         {tab === 'campaigns' && <CampaignsPanel campaigns={campaigns} />}
-        {tab === 'abandoned' && <AbandonedPanel carts={abandoned} />}
-        {tab === 'cashback' && <CashbackPanel settings={cashbackSettings} />}
         {tab === 'crm' && <CRMPanel segmentation={segmentation} />}
         {tab === 'integrations' && <IntegrationsPanel integrations={integrations} />}
-        {tab === 'financeiro' || tab === 'financeiro-dashboard' ? <FinancePanel /> : null}
+        {tab === 'financeiro' || tab === 'financeiro-dashboard' || tab === 'financeiro-lancamentos' || tab === 'financeiro-fluxo' ? <FinancePanel /> : null}
         {tab === 'entregadores' && <DriversPanel />}
-        {tab === 'multiloja' && <StoresPanel />}
-        {tab === 'estoque-avancado' && <AdvancedInventoryPanel />}
-        {tab === 'pdv' && <PDVPanel />}
         {tab === 'produtos' && <ProdutosPanel />}
         {tab === 'complements' && <ComplementsPanel />}
         {tab === 'opcoes' && <OpcoesPanel />}
         {tab === 'filtros-avancados' && <FiltrosAvancadosPanel />}
         {tab === 'combos' && <CombosPanel />}
-        {tab === 'estoque-simples' && <EstoquePanel />}
         {tab === 'caixa' && <CaixaPanel />}
         {tab === 'estoque' && <EstoquePanel />}
-        {tab === 'notas' && <NotasPanel />}
         {tab === 'rotas' && <RotasPanel />}
-        {tab === 'impressoras' && <ImpressorasPanel />}
+        {tab === 'impressoras' || tab === 'config-impressao' ? <ImpressoraConfig /> : null}
         {tab === 'fiado' || tab === 'fiado-dividas' || tab === 'fiado-visao-geral' ? <FiadoPanel subTab={tab === 'fiado-visao-geral' ? 'visao-geral' : 'dividas'} /> : null}
-        {tab === 'blog' && <BlogPanel posts={blogPosts} />}
-        {tab === 'leads' && <LeadsPanel leads={leads} />}
-        {tab === 'partners' && <PartnersPanel partners={partners} />}
-        {tab === 'categorias' && <CategoriasPanel />}
         {tab === 'avaliacoes' && <Avaliacoes />}
         {tab === 'kds' && <iframe src="/kds" style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none', borderRadius: 12 }} title="KDS" />}
-        {tab === 'desempenho-vendas' && <DesempenhoVendas />}
-        {tab === 'desempenho-clientes' && <DesempenhoClientes />}
-        {tab === 'desempenho-rfv' && <DesempenhoRFV />}
-        {tab === 'desempenho-catalogo' && <DesempenhoCatalogo />}
-        {tab === 'desempenho-entregas' && <DesempenhoEntregas />}
-        {tab === 'desempenho-descontos' && <DesempenhoDescontos />}
-        {tab === 'desempenho-cancelamentos' && <DesempenhoCancelamentos />}
-        {tab === 'desempenho-visao-geral' && <DesempenhoVisaoGeral />}
         {tab === 'historico' && <HistoricoPedidos />}
         {tab === 'empresa-perfil' || tab === 'empresa-horarios' || tab === 'empresa-pagamentos' || tab === 'empresa-campos' ? <MinhaEmpresa /> : null}
         {tab === 'empresa-avisos' && <AvisosPanel />}
         {tab === 'avaliacoes' && <Avaliacoes />}
-        {tab === 'chatbot' && <ChatbotPage />}
-        {tab === 'site-analytics' && <SiteAnalyticsPage />}
-        {tab === 'ver-links' && <VerMeusLinks />}
+
         {tab === 'personalizar-site' && <PersonalizarSite />}
         {tab === 'agendamento' && <AgendamentoPage />}
         {tab === 'areas-entrega' && <AreasEntrega />}
         {tab === 'config-geral' && <ConfigGeral />}
         {tab === 'usuarios' && <UsuariosPage />}
-        {tab === 'assinaturas' && <AssinaturasPage />}
+
         {tab === 'impressoras-vincular' || tab === 'impressoras-setores' || tab === 'impressoras-config' || tab === 'config-impressao' ? <ImpressoraConfig /> : null}
         {tab === 'financeiro-lancamentos' || tab === 'financeiro-fluxo' ? <FinancePanel /> : null}
-        {tab === 'segmentacao' && <CRMPanel segmentation={segmentation} />}
+
       </main>
     </div>
   )
