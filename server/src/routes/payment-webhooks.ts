@@ -2,6 +2,9 @@ import { Router, Request, Response } from 'express'
 import { dbGet, dbRun } from '../database'
 import { notifyOrder } from './notifications'
 import { v4 as uuid } from 'uuid'
+import { createChildLogger } from '../logger'
+
+const log = createChildLogger('webhooks')
 
 const router = Router()
 
@@ -9,7 +12,7 @@ router.post('/:provider', async (req: Request, res: Response) => {
   const provider = req.params.provider
   const payload = req.body
 
-  console.log(`[Webhook] ${provider} received`)
+  log.info({ provider }, 'webhook received')
 
   try {
     let orderId: string | null = null
@@ -34,7 +37,7 @@ router.post('/:provider', async (req: Request, res: Response) => {
                 else status = 'pending'
               }
             } catch (e) {
-              console.error('[Webhook] MercadoPago API fetch error:', e)
+              log.error({ err: e }, 'MercadoPago API fetch error')
             }
           }
           if (!orderId) {
@@ -116,7 +119,7 @@ router.post('/:provider', async (req: Request, res: Response) => {
 
     res.json({ success: true })
   } catch (err) {
-    console.error('[Webhook] Error:', err)
+    log.error({ err }, 'webhook processing error')
     res.status(200).json({ received: true, error: 'processing_failed' })
   }
 })
