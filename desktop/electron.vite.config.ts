@@ -21,6 +21,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, '../client'),
+    base: './',
     build: {
       rollupOptions: {
         input: resolve(__dirname, '../client/index.html')

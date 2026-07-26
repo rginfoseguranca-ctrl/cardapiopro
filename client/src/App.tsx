@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getStoreSettings, type StoreSettings } from './api/client'
+import { getStoreSettings, type StoreSettings, isDesktop } from './api/client'
 import Header from './components/Header'
 import CartDrawer from './components/CartDrawer'
 import ChatBot from './components/ChatBot'
@@ -78,7 +78,7 @@ export default function App() {
       <ChangePasswordModal />
       <ToastContainer />
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={isDesktop ? <Navigate to="/login" replace /> : <Landing />} />
         <Route path="/cardapio" element={<Home onCartClick={() => setCartOpen(true)} />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/order/:id" element={<OrderStatus />} />

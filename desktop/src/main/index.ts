@@ -48,7 +48,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      webSecurity: true
+      webSecurity: false
     }
   })
 
@@ -61,10 +61,14 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  const htmlPath = join(__dirname, '../renderer/index.html')
+
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(htmlPath).catch((err) => {
+      console.error('[Desktop] Erro ao carregar renderer:', err)
+    })
   }
 
   createMenu(mainWindow)
