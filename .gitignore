@@ -50,3 +50,6 @@ mobile/ios/
 # Electron build output
 desktop/out/
 desktop/dist/
+
+# Local launcher (user-specific)
+desktop/launch.bat
