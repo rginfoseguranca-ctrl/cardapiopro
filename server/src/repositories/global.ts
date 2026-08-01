@@ -87,6 +87,21 @@ export function findSubscriptionByStore(storeId: string): Subscription | null {
   return g.get('SELECT * FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId]) as Subscription | null
 }
 
+export function findAllSubscriptions(): Subscription[] {
+  return g.all('SELECT * FROM subscriptions ORDER BY created_at DESC') as Subscription[]
+}
+
+export function updateSubscriptionByStore(storeId: string, patch: Partial<Subscription>): void {
+  if (!storeId) return
+  const allowed = ['plan', 'status', 'stripe_customer_id', 'stripe_subscription_id', 'trial_ends_at', 'current_period_end']
+  const keys = allowed.filter(k => (patch as any)[k] !== undefined)
+  if (!keys.length) return
+  g.run(
+    `UPDATE subscriptions SET ${keys.map(k => `"${k}" = ?`).join(', ')}, updated_at = datetime('now') WHERE store_id = ?`,
+    [...keys.map(k => (patch as any)[k]), storeId]
+  )
+}
+
 export function isTokenBlacklisted(jti: string): boolean {
   if (!jti) return false
   const row = g.get('SELECT 1 AS x FROM token_blacklist WHERE jti = ? AND expires_at > datetime("now")', [jti])

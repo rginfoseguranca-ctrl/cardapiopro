@@ -381,3 +381,119 @@ export interface CashbackTransaction {
   created_at: string
   store_id: string
 }
+
+export interface Review {
+  id: string
+  product_id: string
+  customer_name: string
+  rating: number
+  comment: string
+  created_at: string
+  store_id: string
+}
+
+export interface AbandonedCart {
+  id: string
+  customer_phone: string | null
+  customer_name: string | null
+  items: string
+  subtotal: number
+  status: string
+  created_at: string
+  store_id: string
+}
+
+export interface BlogPost {
+  id: string
+  title: string
+  slug: string
+  content: string
+  excerpt: string
+  image: string
+  author: string
+  is_published: number
+  published_at: string | null
+  created_at: string
+  store_id: string
+}
+
+export interface Partner {
+  id: string
+  name: string
+  company: string | null
+  email: string | null
+  phone: string | null
+  city: string | null
+  created_at: string
+}
+
+export interface Lead {
+  id: string
+  name: string
+  company: string | null
+  email: string | null
+  phone: string | null
+  segment: string | null
+  monthly_revenue: string | null
+  created_at: string
+}
+
+export interface Invoice {
+  id: string
+  order_id: string | null
+  status: string
+  nfe_number: string | null
+  xml_url: string | null
+  created_at: string
+  store_id: string
+}
+
+export interface PaymentWebhook {
+  id: string
+  provider: string
+  order_id: string
+  payment_id: string | null
+  status: string
+  payload: string
+  created_at: string
+  store_id: string
+}
+
+export interface FiadoEntry {
+  id: string
+  customer_id: string
+  customer_name: string
+  customer_phone: string | null
+  order_id: string | null
+  amount: number
+  paid_amount: number
+  status: string
+  due_date: string | null
+  notes: string | null
+  created_at: string
+  store_id: string
+}
+
+export interface Campaign {
+  id: string
+  name: string
+  message: string
+  filters: string
+  status: string
+  sent_count: number
+  is_active: number
+  created_at: string
+  store_id: string
+}
+
+export interface DeliveryArea {
+  id: string
+  name: string
+  base_fee: number
+  free_delivery_from: number
+  radius: number
+  active: number
+  created_at: string
+  updated_at: string
+  store_id: string
+}
