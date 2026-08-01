@@ -1,6 +1,6 @@
 import { app, BrowserWindow, shell, ipcMain, protocol } from 'electron'
 import { join } from 'path'
-import { initDatabase } from './database'
+import { initDatabase, shutdownDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
 import { startSyncEngine } from './sync-engine'
 import { registerLocalCacheProtocol } from './image-cache'
@@ -100,6 +100,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('will-quit', () => {
+  shutdownDatabase()
 })
 
 // Expose app paths to renderer via IPC

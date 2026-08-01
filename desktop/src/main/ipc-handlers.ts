@@ -1,44 +1,73 @@
 import { ipcMain } from 'electron'
 import { dbGet, dbAll, dbRun, generateId } from './database'
+import { setAuthToken, setServerUrl } from './sync-engine'
+import crypto from 'crypto'
+
+function getHash(str: string): string {
+  return crypto.createHash('md5').update(str).digest('hex')
+}
+
+function resolveProductImage(image: string | null): string {
+  if (!image || image.startsWith('local-cache://') || image.startsWith('data:')) return image || ''
+  try {
+    const { getCachedImagePath } = require('./image-cache')
+    const cached = getCachedImagePath(image)
+    if (cached) {
+      return `local-cache://${getHash(image)}`
+    }
+  } catch {}
+  return image
+}
+
+function resolveProductsImages(products: any[]): any[] {
+  return products.map(p => ({
+    ...p,
+    image: resolveProductImage(p.image)
+  }))
+}
 
 export function registerIpcHandlers(): void {
 
   // ─── Products ───
   ipcMain.handle('products:list', () => {
-    return dbAll(`
+    return resolveProductsImages(dbAll(`
       SELECT p.*, c.name as category_name, c.icon as category_icon
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.is_available = 1
       ORDER BY c."order", p.name
-    `)
+    `))
   })
 
   ipcMain.handle('products:list-all', () => {
-    return dbAll(`
+    return resolveProductsImages(dbAll(`
       SELECT p.*, c.name as category_name, c.icon as category_icon
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       ORDER BY c."order", p.name
-    `)
+    `))
   })
 
   ipcMain.handle('products:get', (_e, id: string) => {
-    return dbGet(`
+    const product = dbGet(`
       SELECT p.*, c.name as category_name, c.icon as category_icon
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.id = ?
     `, [id])
+    if (product) {
+      product.image = resolveProductImage(product.image)
+    }
+    return product
   })
 
   ipcMain.handle('products:create', (_e, product: any) => {
     const id = generateId()
     dbRun(
-      `INSERT INTO products (id, name, description, price, price_promotional, image, category_id, is_highlighted, is_available, ingredients)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO products (id, name, description, price, price_promotional, image, barcode, category_id, is_highlighted, is_available, ingredients)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, product.name, product.description || '', product.price, product.pricePromotional || null,
-       product.image || '', product.categoryId || '', product.isHighlighted ? 1 : 0,
+       product.image || '', product.barcode || '', product.categoryId || '', product.isHighlighted ? 1 : 0,
        product.isAvailable !== false ? 1 : 0, JSON.stringify(product.ingredients || [])]
     )
     addToSyncQueue('create', 'product', id, product)
@@ -54,6 +83,7 @@ export function registerIpcHandlers(): void {
     if (data.price !== undefined) { sets.push('price = ?'); vals.push(data.price) }
     if (data.pricePromotional !== undefined) { sets.push('price_promotional = ?'); vals.push(data.pricePromotional) }
     if (data.image !== undefined) { sets.push('image = ?'); vals.push(data.image) }
+    if (data.barcode !== undefined) { sets.push('barcode = ?'); vals.push(data.barcode) }
     if (data.categoryId !== undefined) { sets.push('category_id = ?'); vals.push(data.categoryId) }
     if (data.isHighlighted !== undefined) { sets.push('is_highlighted = ?'); vals.push(data.isHighlighted ? 1 : 0) }
     if (data.isAvailable !== undefined) { sets.push('is_available = ?'); vals.push(data.isAvailable ? 1 : 0) }
@@ -89,8 +119,20 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('categories:update', (_e, id: string, data: any) => {
-    dbRun('UPDATE categories SET name = ?, icon = ?, is_active = ? WHERE id = ?',
-      [data.name, data.icon || '📋', data.isActive !== false ? 1 : 0, id])
+    const existing = dbGet('SELECT * FROM categories WHERE id = ?', [id]) as any
+    if (!existing) return null
+    const sets: string[] = []
+    const vals: any[] = []
+    if (data.name !== undefined) { sets.push('name = ?'); vals.push(data.name) }
+    else { sets.push('name = ?'); vals.push(existing.name) }
+    if (data.icon !== undefined) { sets.push('icon = ?'); vals.push(data.icon) }
+    else { sets.push('icon = ?'); vals.push(existing.icon) }
+    if (data.isActive !== undefined) { sets.push('is_active = ?'); vals.push(data.isActive ? 1 : 0) }
+    else { sets.push('is_active = ?'); vals.push(existing.is_active) }
+    if (data.order !== undefined) { sets.push('"order" = ?'); vals.push(data.order) }
+    sets.push("updated_at = datetime('now')")
+    vals.push(id)
+    dbRun(`UPDATE categories SET ${sets.join(', ')} WHERE id = ?`, vals)
     addToSyncQueue('update', 'category', id, { id, ...data })
     return dbGet('SELECT * FROM categories WHERE id = ?', [id])
   })
@@ -103,6 +145,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('categories:reorder', (_e, ids: string[]) => {
     ids.forEach((id, i) => dbRun('UPDATE categories SET "order" = ? WHERE id = ?', [i + 1, id]))
+    addToSyncQueue('update', 'category', ids[0] || '', { ids, operation: 'reorder' })
     return { success: true }
   })
 
@@ -122,11 +165,11 @@ export function registerIpcHandlers(): void {
 
     dbRun(
       `INSERT INTO orders (id, customer_name, customer_phone, items, subtotal, discount, total,
-        payment_method, status, delivery_type, delivery_address, table_number, notes, scheduled_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        payment_method, payment_status, status, delivery_type, delivery_address, table_number, notes, scheduled_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, order.customerName || '', order.customerPhone || '00000000000',
        JSON.stringify(order.items || []), subtotal, order.discount || 0, total,
-       order.paymentMethod || 'cash', 'pending', order.deliveryType || 'pickup',
+       order.paymentMethod || 'cash', order.paymentStatus || 'pending', 'pending', order.deliveryType || 'pickup',
        order.deliveryAddress || '', order.tableNumber || null,
        order.notes || '', order.scheduledAt || null]
     )
@@ -228,11 +271,22 @@ export function registerIpcHandlers(): void {
     return dbAll('SELECT * FROM complement_groups')
   })
 
+  ipcMain.handle('complements:list-all-groups', () => {
+    const groups = dbAll('SELECT * FROM complement_groups')
+    const map: Record<string, any[]> = {}
+    for (const g of groups) {
+      if (!map[g.product_id]) map[g.product_id] = []
+      map[g.product_id].push(g)
+    }
+    return map
+  })
+
   ipcMain.handle('complements:create-group', (_e, group: any) => {
     const id = generateId()
     dbRun('INSERT INTO complement_groups (id, name, type, min, max, product_id, is_required) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, group.name, group.type || 'checkbox', group.min || 0, group.max || 0,
        group.productId, group.isRequired ? 1 : 0])
+    addToSyncQueue('create', 'complement_group', id, { id, ...group })
     return dbGet('SELECT * FROM complement_groups WHERE id = ?', [id])
   })
 
@@ -240,17 +294,51 @@ export function registerIpcHandlers(): void {
     const id = generateId()
     dbRun('INSERT INTO complements (id, group_id, name, price) VALUES (?, ?, ?, ?)',
       [id, item.groupId, item.name, item.price || 0])
+    addToSyncQueue('create', 'complement', id, { id, ...item })
+    return dbGet('SELECT * FROM complements WHERE id = ?', [id])
+  })
+
+  ipcMain.handle('complements:update-group', (_e, id: string, data: any) => {
+    const sets: string[] = []
+    const vals: any[] = []
+    if (data.name !== undefined) { sets.push('name = ?'); vals.push(data.name) }
+    if (data.type !== undefined) { sets.push('type = ?'); vals.push(data.type) }
+    if (data.min !== undefined) { sets.push('min = ?'); vals.push(data.min) }
+    if (data.max !== undefined) { sets.push('max = ?'); vals.push(data.max) }
+    if (data.isRequired !== undefined) { sets.push('is_required = ?'); vals.push(data.isRequired ? 1 : 0) }
+    if (sets.length > 0) {
+      vals.push(id)
+      dbRun(`UPDATE complement_groups SET ${sets.join(', ')} WHERE id = ?`, vals)
+    }
+    addToSyncQueue('update', 'complement_group', id, { id, ...data })
+    return dbGet('SELECT * FROM complement_groups WHERE id = ?', [id])
+  })
+
+  ipcMain.handle('complements:update-item', (_e, id: string, data: any) => {
+    const sets: string[] = []
+    const vals: any[] = []
+    if (data.name !== undefined) { sets.push('name = ?'); vals.push(data.name) }
+    if (data.price !== undefined) { sets.push('price = ?'); vals.push(data.price) }
+    if (data.maxExtra !== undefined) { sets.push('max_extra = ?'); vals.push(data.maxExtra) }
+    if (data.isAvailable !== undefined) { sets.push('is_available = ?'); vals.push(data.isAvailable ? 1 : 0) }
+    if (sets.length > 0) {
+      vals.push(id)
+      dbRun(`UPDATE complements SET ${sets.join(', ')} WHERE id = ?`, vals)
+    }
+    addToSyncQueue('update', 'complement', id, { id, ...data })
     return dbGet('SELECT * FROM complements WHERE id = ?', [id])
   })
 
   ipcMain.handle('complements:delete-group', (_e, id: string) => {
     dbRun('DELETE FROM complement_groups WHERE id = ?', [id])
     dbRun('DELETE FROM complements WHERE group_id = ?', [id])
+    addToSyncQueue('delete', 'complement_group', id, { id })
     return { success: true }
   })
 
   ipcMain.handle('complements:delete-item', (_e, id: string) => {
     dbRun('DELETE FROM complements WHERE id = ?', [id])
+    addToSyncQueue('delete', 'complement', id, { id })
     return { success: true }
   })
 
@@ -268,11 +356,13 @@ export function registerIpcHandlers(): void {
     if (customer) {
       dbRun("UPDATE customers SET name = ?, email = ?, address = ?, total_orders = total_orders + 1, total_spent = total_spent + ?, last_order_at = datetime('now') WHERE id = ?",
         [data.name || customer.name, data.email || customer.email, data.address || customer.address, data.orderTotal || 0, customer.id])
+      addToSyncQueue('update', 'customer', customer.id, { id: customer.id, ...data })
       return dbGet('SELECT * FROM customers WHERE id = ?', [customer.id])
     }
     const id = generateId()
     dbRun('INSERT INTO customers (id, name, phone, email, address, total_orders, total_spent) VALUES (?, ?, ?, ?, ?, 1, ?)',
       [id, data.name, data.phone, data.email || '', data.address || '', data.orderTotal || 0])
+    addToSyncQueue('create', 'customer', id, { id, ...data })
     return dbGet('SELECT * FROM customers WHERE id = ?', [id])
   })
 
@@ -302,11 +392,29 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('store:update', (_e, data: any) => {
+    const columnMap: Record<string, string> = {
+      storeName: 'store_name',
+      storeIcon: 'store_icon',
+      primaryColor: 'primary_color',
+      primaryDark: 'primary_dark',
+      paymentPixKey: 'payment_pix_key',
+      paymentPixName: 'payment_pix_name',
+      paymentCardInfo: 'payment_card_info',
+      paymentCashInfo: 'payment_cash_info',
+      footerText: 'footer_text',
+      logoUrl: 'logo_url',
+      openingHours: 'opening_hours',
+      deliveryFee: 'delivery_fee',
+      freeDeliveryFrom: 'free_delivery_from',
+      schedulingEnabled: 'scheduling_enabled',
+      isOpen: 'is_open',
+    }
     const sets: string[] = []
     const vals: any[] = []
     for (const [key, value] of Object.entries(data)) {
       if (key === 'id') continue
-      sets.push(`${key} = ?`)
+      const column = columnMap[key] || key
+      sets.push(`${column} = ?`)
       vals.push(typeof value === 'object' ? JSON.stringify(value) : value)
     }
     if (sets.length > 0) {
@@ -346,11 +454,13 @@ export function registerIpcHandlers(): void {
     const id = generateId()
     dbRun('INSERT INTO coupons (id, code, title, description, discount_type, discount_value, min_order_value, max_uses) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [id, coupon.code, coupon.title, coupon.description || '', coupon.discountType, coupon.discountValue, coupon.minOrderValue || 0, coupon.maxUses || 0])
+    addToSyncQueue('create', 'coupon', id, { id, ...coupon })
     return dbGet('SELECT * FROM coupons WHERE id = ?', [id])
   })
 
   ipcMain.handle('coupons:delete', (_e, id: string) => {
     dbRun('DELETE FROM coupons WHERE id = ?', [id])
+    addToSyncQueue('delete', 'coupon', id, { id })
     return { success: true }
   })
 
@@ -363,11 +473,29 @@ export function registerIpcHandlers(): void {
     const id = generateId()
     dbRun('INSERT INTO loyalty_rewards (id, name, description, points_required) VALUES (?, ?, ?, ?)',
       [id, reward.name, reward.description || '', reward.pointsRequired])
+    addToSyncQueue('create', 'loyalty_reward', id, { id, ...reward })
     return dbGet('SELECT * FROM loyalty_rewards WHERE id = ?', [id])
   })
 
   ipcMain.handle('loyalty:delete-reward', (_e, id: string) => {
     dbRun('DELETE FROM loyalty_rewards WHERE id = ?', [id])
+    addToSyncQueue('delete', 'loyalty_reward', id, { id })
+    return { success: true }
+  })
+
+  // ─── Integrations ───
+  ipcMain.handle('integrations:list', () => {
+    const rows = dbAll('SELECT key, value FROM store_settings WHERE key LIKE \'integration_%\'')
+    const integrations: Record<string, string> = {}
+    for (const row of rows) {
+      integrations[row.key.replace('integration_', '')] = row.value
+    }
+    return integrations
+  })
+
+  ipcMain.handle('integrations:save', (_e, key: string, value: string) => {
+    dbRun('INSERT OR REPLACE INTO store_settings (key, value) VALUES (?, ?)',
+      [`integration_${key}`, value])
     return { success: true }
   })
 
@@ -380,10 +508,8 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('sync:is-online', async () => {
     try {
-      const serverUrl = (dbGet("SELECT value FROM sync_metadata WHERE key = 'server_url'") as any)?.value
-      if (!serverUrl) return false
-      const response = await fetch(`${serverUrl}/health`, { signal: AbortSignal.timeout(3000) })
-      return response.ok
+      const { getOnlineStatus } = await import('./sync-engine')
+      return getOnlineStatus()
     } catch {
       return false
     }
@@ -403,11 +529,36 @@ export function registerIpcHandlers(): void {
     return { success: true }
   })
 
+  ipcMain.handle('sync:set-server-url', async (_e, url: string) => {
+    setServerUrl(url)
+    const { triggerSync } = await import('./sync-engine')
+    await triggerSync()
+    return { success: true }
+  })
+
   // ─── Images ───
   ipcMain.handle('images:cache', async (_e, url: string) => {
     try {
       const { cacheImage } = await import('./image-cache')
       return await cacheImage(url)
+    } catch {
+      return null
+    }
+  })
+
+  ipcMain.handle('images:cache-from-buffer', async (_e, name: string, buffer: ArrayBuffer) => {
+    try {
+      const { cacheImage } = await import('./image-cache')
+      const fs = require('fs')
+      const path = require('path')
+      const { app } = require('electron')
+      const CACHE_DIR = path.join(app.getPath('userData'), 'image-cache')
+      if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true })
+      const ext = path.extname(name) || '.jpg'
+      const hash = getHash(name + Date.now())
+      const filePath = path.join(CACHE_DIR, `${hash}${ext}`)
+      fs.writeFileSync(filePath, Buffer.from(buffer))
+      return `local-cache://${hash}`
     } catch {
       return null
     }
@@ -431,7 +582,7 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  // ─── Auth (local) ───
+  // ─── Auth (local + server JWT) ───
   ipcMain.handle('auth:login', async (_e, email: string, password: string) => {
     const bcrypt = require('bcryptjs')
     const user = dbGet('SELECT * FROM users WHERE email = ?', [email]) as any
@@ -440,8 +591,30 @@ export function registerIpcHandlers(): void {
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) return { error: 'Email ou senha inválidos' }
 
-    const token = generateId()
     const store = dbGet('SELECT * FROM company_settings WHERE id = ?', ['main']) as any
+
+    // Try to get a real JWT from the server
+    let token = generateId()
+    try {
+      const serverUrl = (dbGet("SELECT value FROM sync_metadata WHERE key = 'server_url'") as any)?.value
+      if (serverUrl) {
+        const res = await fetch(`${serverUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(5000)
+        })
+        if (res.ok) {
+          const data: any = await res.json()
+          if (data.token) {
+            token = data.token
+            setAuthToken(token)
+          }
+        }
+      }
+    } catch {
+      // Server offline — use local token, sync will fail but app still works
+    }
 
     return {
       token,
@@ -463,7 +636,26 @@ export function registerIpcHandlers(): void {
 
     dbRun("UPDATE company_settings SET store_name = ? WHERE id = ?", [payload.storeName, 'main'])
 
-    const token = generateId()
+    let token = generateId()
+    try {
+      const serverUrl = (dbGet("SELECT value FROM sync_metadata WHERE key = 'server_url'") as any)?.value
+      if (serverUrl) {
+        const res = await fetch(`${serverUrl}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: payload.name, email: payload.email, password: payload.password, storeName: payload.storeName }),
+          signal: AbortSignal.timeout(5000)
+        })
+        if (res.ok) {
+          const data: any = await res.json()
+          if (data.token) {
+            token = data.token
+            setAuthToken(token)
+          }
+        }
+      }
+    } catch {}
+
     return {
       token,
       user: { id, name: payload.name, email: payload.email, role: 'admin' },

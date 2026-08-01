@@ -1,21 +1,22 @@
 import { getDb, generateId, dbAll, dbRun, dbGet } from './database'
+import crypto from 'crypto'
 
 let syncInterval: NodeJS.Timeout | null = null
 let isSyncing = false
 let onlineStatus = false
 
-const SERVER_URL = process.env.API_URL || 'http://localhost:3001'
+function getServerUrl(): string {
+  try {
+    const db = getDb()
+    const url = (dbGet.call(db, "SELECT value FROM sync_metadata WHERE key = 'server_url'") as any)?.value
+    if (url) return url
+  } catch {}
+  return process.env.API_URL || 'http://localhost:3001'
+}
 
 export function startSyncEngine(): void {
-  try {
-    const serverUrl = (dbGet("SELECT value FROM sync_metadata WHERE key = 'server_url'") as any)?.value
-    if (!serverUrl && !process.env.API_URL) {
-      console.log('[Sync] Sem servidor configurado — modo offline puro')
-      return
-    }
-  } catch {}
-
-  console.log('[Sync] Motor iniciado — verificando a cada 30s')
+  const url = getServerUrl()
+  console.log(`[Sync] Motor iniciado — servidor: ${url}, verificando a cada 30s`)
   syncInterval = setInterval(() => runSync(), 30000)
   runSync()
 }
@@ -54,7 +55,7 @@ async function runSync(): Promise<void> {
 
 async function checkConnectivity(): Promise<boolean> {
   try {
-    const res = await fetch(`${SERVER_URL}/health`, { signal: AbortSignal.timeout(5000) })
+    const res = await fetch(`${getServerUrl()}/health`, { signal: AbortSignal.timeout(5000) })
     return res.ok
   } catch {
     return false
@@ -63,6 +64,7 @@ async function checkConnectivity(): Promise<boolean> {
 
 async function pushPendingChanges(): Promise<void> {
   const db = getDb()
+  const serverUrl = getServerUrl()
   const pending = dbAll(
     "SELECT * FROM sync_queue WHERE status = 'pending' ORDER BY created_at LIMIT 50"
   )
@@ -74,36 +76,79 @@ async function pushPendingChanges(): Promise<void> {
     try {
       const payload = JSON.parse(item.payload)
       let endpoint = ''
+      let method = ''
 
       switch (item.entity_type) {
-        case 'product': endpoint = item.operation === 'delete' ? `/products/${item.entity_id}` : (item.operation === 'update' ? `/products/${item.entity_id}` : '/products'); break
-        case 'category': endpoint = item.operation === 'delete' ? `/categories/${item.entity_id}` : (item.operation === 'update' ? `/categories/${item.entity_id}` : '/categories'); break
-        case 'order': endpoint = item.operation === 'update' ? `/orders/${item.entity_id}/status` : '/orders'; break
-        case 'table': endpoint = item.operation === 'delete' ? `/tables/${item.entity_id}` : (item.operation === 'update' ? `/tables/${item.entity_id}` : '/tables'); break
-        case 'customer': endpoint = '/customers'; break
-        case 'store_settings': endpoint = '/store'; break
-        case 'fiado': endpoint = '/fiado'; break
+        case 'product':
+          if (item.operation === 'delete') { endpoint = `/api/products/${item.entity_id}`; method = 'DELETE' }
+          else if (item.operation === 'update') { endpoint = `/api/products/${item.entity_id}`; method = 'PUT' }
+          else { endpoint = '/api/products'; method = 'POST' }
+          break
+        case 'category':
+          if (item.operation === 'delete') { endpoint = `/api/products/categories/${item.entity_id}`; method = 'DELETE' }
+          else if (item.operation === 'update') { endpoint = `/api/products/categories/${item.entity_id}`; method = 'PUT' }
+          else { endpoint = '/api/products/categories'; method = 'POST' }
+          break
+        case 'complement_group':
+          if (item.operation === 'delete') { endpoint = `/api/complements/groups/${item.entity_id}`; method = 'DELETE' }
+          else if (item.operation === 'update') { endpoint = `/api/complements/groups/${item.entity_id}`; method = 'PUT' }
+          else { endpoint = '/api/complements/groups'; method = 'POST' }
+          break
+        case 'complement':
+          if (item.operation === 'delete') { endpoint = `/api/complements/${item.entity_id}`; method = 'DELETE' }
+          else if (item.operation === 'update') { endpoint = `/api/complements/${item.entity_id}`; method = 'PUT' }
+          else { endpoint = '/api/complements'; method = 'POST' }
+          break
+        case 'order':
+          if (item.operation === 'update') { endpoint = `/api/orders/${item.entity_id}/status`; method = 'PATCH' }
+          else { endpoint = '/api/orders'; method = 'POST' }
+          break
+        case 'table':
+          if (item.operation === 'delete') { endpoint = `/api/tables/${item.entity_id}`; method = 'DELETE' }
+          else if (item.operation === 'update') { endpoint = `/api/tables/${item.entity_id}`; method = 'PUT' }
+          else { endpoint = '/api/tables'; method = 'POST' }
+          break
+        case 'customer':
+          endpoint = `/api/customers/${item.entity_id}`; method = 'PATCH'
+          break
+        case 'store_settings':
+          endpoint = '/api/store'; method = 'PUT'
+          break
+        case 'fiado':
+          if (item.operation === 'pay') { endpoint = `/api/fiado/${item.entity_id}/pay`; method = 'PATCH' }
+          else { endpoint = '/api/fiado'; method = 'POST' }
+          break
+        case 'cash_entry':
+          endpoint = '/api/cash-register'; method = 'POST'
+          break
+        case 'coupon':
+          if (item.operation === 'delete') { endpoint = `/api/coupons/${item.entity_id}`; method = 'DELETE' }
+          else { endpoint = '/api/coupons'; method = 'POST' }
+          break
+        case 'loyalty_reward':
+          if (item.operation === 'delete') { endpoint = `/api/loyalty/rewards/${item.entity_id}`; method = 'DELETE' }
+          else { endpoint = '/api/loyalty/rewards'; method = 'POST' }
+          break
         default: continue
       }
 
-      const method = item.operation === 'delete' ? 'DELETE' : (item.operation === 'update' ? 'PUT' : 'POST')
-
-      const res = await fetch(`${SERVER_URL}${endpoint}`, {
+      const res = await fetch(`${serverUrl}${endpoint}`, {
         method,
         headers: {
           'Content-Type': 'application/json',
           'X-Idempotency-Key': item.idempotency_key,
           'Authorization': `Bearer ${getAuthToken()}`
         },
-        body: JSON.stringify(payload),
+        body: method !== 'DELETE' ? JSON.stringify(payload) : undefined,
         signal: AbortSignal.timeout(10000)
       })
 
       if (res.ok) {
         dbRun("UPDATE sync_queue SET status = 'synced' WHERE id = ?", [item.id])
       } else if (res.status >= 400 && res.status < 500) {
+        const errorBody = await res.text().catch(() => '')
         dbRun("UPDATE sync_queue SET status = 'failed', last_error = ? WHERE id = ?",
-          [`HTTP ${res.status}`, item.id])
+          [`HTTP ${res.status}: ${errorBody.slice(0, 100)}`, item.id])
       } else {
         dbRun("UPDATE sync_queue SET retry_count = retry_count + 1 WHERE id = ?", [item.id])
       }
@@ -116,21 +161,27 @@ async function pushPendingChanges(): Promise<void> {
 
 async function pullRemoteChanges(): Promise<void> {
   const db = getDb()
+  const serverUrl = getServerUrl()
   const lastSync = (dbGet("SELECT value FROM sync_metadata WHERE key = 'last_pull_at'") as any)?.value || null
 
   const endpoints = [
-    { table: 'categories', url: '/categories' },
-    { table: 'products', url: '/products' },
-    { table: 'orders', url: '/orders' },
-    { table: 'tables_list', url: '/tables' },
-    { table: 'customers', url: '/customers' },
-    { table: 'company_settings', url: '/store' },
+    { table: 'categories', url: '/api/products/categories' },
+    { table: 'products', url: '/api/products/all' },
+    { table: 'orders', url: '/api/orders' },
+    { table: 'tables_list', url: '/api/tables' },
+    { table: 'customers', url: '/api/customers' },
+    { table: 'company_settings', url: '/api/store' },
+    { table: 'complement_groups', url: '/api/complements/groups', key: 'groups' },
+    { table: 'fiado', url: '/api/fiado', key: 'debts' },
+    { table: 'coupons', url: '/api/coupons' },
+    { table: 'loyalty_rewards', url: '/api/loyalty/rewards' },
+    { table: 'cash_register', url: '/api/cash-register', key: 'entries' },
   ]
 
-  for (const { table, url } of endpoints) {
+  for (const { table, url, key } of endpoints) {
     try {
-      let fetchUrl = `${SERVER_URL}${url}`
-      if (lastSync && url !== '/store') {
+      let fetchUrl = `${serverUrl}${url}`
+      if (lastSync && url !== '/api/store') {
         fetchUrl += `?since=${lastSync}`
       }
 
@@ -142,12 +193,35 @@ async function pullRemoteChanges(): Promise<void> {
       if (!res.ok) continue
       const data: any = await res.json()
 
-      const items = Array.isArray(data) ? data : (data[table] || data.items || [])
+      const items = Array.isArray(data) ? data : (data[key || table] || data.items || data.debts || data.entries || data.groups || [])
       for (const remote of items) {
         mergeRemoteItem(table, remote)
       }
+
+      if (table === 'complement_groups') {
+        for (const group of items) {
+          if (Array.isArray(group.items)) {
+            for (const item of group.items) {
+              mergeRemoteItem('complements', { ...item, group_id: group.id || item.groupId })
+            }
+          }
+        }
+      }
+
+      if (table === 'products') {
+        for (const remote of items) {
+          if (remote.image && !remote.image.startsWith('local-cache://') && !remote.image.startsWith('data:')) {
+            cacheProductImage(remote.id, remote.image)
+          }
+        }
+      }
     } catch {}
   }
+
+  try {
+    const { forceSaveDb } = await import('./database')
+    forceSaveDb()
+  } catch {}
 
   db.run("INSERT OR REPLACE INTO sync_metadata (key, value) VALUES ('last_pull_at', ?)",
     [new Date().toISOString()])
@@ -160,12 +234,30 @@ function mergeRemoteItem(table: string, remote: any): void {
   const existing = dbGet(`SELECT id FROM ${table} WHERE id = ?`, [id])
 
   if (table === 'company_settings') {
+    const columnMap: Record<string, string> = {
+      storeName: 'store_name',
+      storeIcon: 'store_icon',
+      primaryColor: 'primary_color',
+      primaryDark: 'primary_dark',
+      paymentPixKey: 'payment_pix_key',
+      paymentPixName: 'payment_pix_name',
+      paymentCardInfo: 'payment_card_info',
+      paymentCashInfo: 'payment_cash_info',
+      footerText: 'footer_text',
+      logoUrl: 'logo_url',
+      openingHours: 'opening_hours',
+      deliveryFee: 'delivery_fee',
+      freeDeliveryFrom: 'free_delivery_from',
+      schedulingEnabled: 'scheduling_enabled',
+      isOpen: 'is_open',
+    }
     if (existing) {
       const sets: string[] = []
       const vals: any[] = []
       for (const [key, value] of Object.entries(remote)) {
         if (key === 'id') continue
-        sets.push(`${key} = ?`)
+        const col = columnMap[key] || key
+        sets.push(`${col} = ?`)
         vals.push(typeof value === 'object' ? JSON.stringify(value) : value)
       }
       if (sets.length > 0) {
@@ -174,8 +266,9 @@ function mergeRemoteItem(table: string, remote: any): void {
       }
     } else {
       const keys = Object.keys(remote).filter(k => k !== 'id')
-      const placeholders = keys.map(() => '?').join(', ')
-      dbRun(`INSERT INTO ${table} (id, ${keys.join(', ')}) VALUES (?, ${placeholders})`,
+      const mappedKeys = keys.map(k => columnMap[k] || k)
+      const placeholders = mappedKeys.map(() => '?').join(', ')
+      dbRun(`INSERT INTO ${table} (id, ${mappedKeys.join(', ')}) VALUES (?, ${placeholders})`,
         ['main', ...keys.map(k => typeof remote[k] === 'object' ? JSON.stringify(remote[k]) : remote[k])])
     }
     return
@@ -232,4 +325,21 @@ export function getOnlineStatus(): boolean {
 
 export function triggerSync(): Promise<void> {
   return runSync()
+}
+
+function getHash(str: string): string {
+  return crypto.createHash('md5').update(str).digest('hex')
+}
+
+async function cacheProductImage(productId: string, imageUrl: string): Promise<void> {
+  try {
+    const { cacheImage } = await import('./image-cache')
+    const localPath = await cacheImage(imageUrl)
+    if (localPath) {
+      const hash = getHash(imageUrl)
+      dbRun('UPDATE products SET image = ? WHERE id = ?', [`local-cache://${hash}`, productId])
+    }
+  } catch (err) {
+    console.error(`[Sync] Erro ao cachear imagem do produto ${productId}:`, err)
+  }
 }

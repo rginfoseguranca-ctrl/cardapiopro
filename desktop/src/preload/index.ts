@@ -63,8 +63,11 @@ const electronAPI = {
   // Complements
   complements: {
     listGroups: (productId?: string) => ipcRenderer.invoke('complements:list-groups', productId),
+    listAllGroups: () => ipcRenderer.invoke('complements:list-all-groups'),
     createGroup: (group: any) => ipcRenderer.invoke('complements:create-group', group),
+    updateGroup: (id: string, data: any) => ipcRenderer.invoke('complements:update-group', id, data),
     createItem: (item: any) => ipcRenderer.invoke('complements:create-item', item),
+    updateItem: (id: string, data: any) => ipcRenderer.invoke('complements:update-item', id, data),
     deleteGroup: (id: string) => ipcRenderer.invoke('complements:delete-group', id),
     deleteItem: (id: string) => ipcRenderer.invoke('complements:delete-item', id),
   },
@@ -100,11 +103,13 @@ const electronAPI = {
     forceSync: () => ipcRenderer.invoke('sync:force'),
     pushPending: () => ipcRenderer.invoke('sync:push-pending'),
     isOnline: () => ipcRenderer.invoke('sync:is-online'),
+    setServerUrl: (url: string) => ipcRenderer.invoke('sync:set-server-url', url),
   },
 
   // Images
   images: {
     cache: (url: string) => ipcRenderer.invoke('images:cache', url),
+    cacheFromBuffer: (name: string, buffer: ArrayBuffer) => ipcRenderer.invoke('images:cache-from-buffer', name, buffer),
     getCachedPath: (url: string) => ipcRenderer.invoke('images:get-cached-path', url),
     clearCache: () => ipcRenderer.invoke('images:clear-cache'),
   },
@@ -121,6 +126,12 @@ const electronAPI = {
     rewards: () => ipcRenderer.invoke('loyalty:rewards'),
     createReward: (reward: any) => ipcRenderer.invoke('loyalty:create-reward', reward),
     deleteReward: (id: string) => ipcRenderer.invoke('loyalty:delete-reward', id),
+  },
+
+  // Integrations
+  integrations: {
+    list: () => ipcRenderer.invoke('integrations:list'),
+    save: (key: string, value: string) => ipcRenderer.invoke('integrations:save', key, value),
   },
 
   // Auth (local)
