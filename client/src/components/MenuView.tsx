@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getProducts, getCategories, getHighlightedProducts } from '../api/client'
+import { getProducts, getCategories, getHighlightedProducts, getStoreSettings, getAllComplementGroups } from '../api/client'
 import ProductCard from './ProductCard'
 import ProductDetailModal from './ProductDetailModal'
 import { LoadingScreen } from './Loading'
@@ -14,9 +14,25 @@ interface MenuViewProps {
   headerTitle?: string
   headerSubtitle?: string
   headerTheme?: 'primary' | 'dark'
+  storeSlug?: string
 }
 
-export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitle, headerTheme = 'primary' }: MenuViewProps) {
+function isStoreOpen(openingHours: Record<string, { open: string; close: string; closed: boolean }> | undefined): boolean {
+  if (!openingHours || Object.keys(openingHours).length === 0) return true
+  const now = new Date()
+  const dayNames = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado']
+  const today = dayNames[now.getDay()]
+  const todayHours = openingHours[today]
+  if (!todayHours || todayHours.closed) return false
+  const [openH, openM] = todayHours.open.split(':').map(Number)
+  const [closeH, closeM] = todayHours.close.split(':').map(Number)
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const openMinutes = openH * 60 + openM
+  const closeMinutes = closeH * 60 + closeM
+  return currentMinutes >= openMinutes && currentMinutes < closeMinutes
+}
+
+export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitle, headerTheme = 'primary', storeSlug }: MenuViewProps) {
   const [activeCategory, setActiveCategory] = useState('all')
   const [search, setSearch] = useState('')
   const [highlightModal, setHighlightModal] = useState<{ product: any } | null>(null)
@@ -24,9 +40,13 @@ export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitl
 
   useEffect(() => { setMode(mode, mode === 'mesa' ? tableNumber : undefined) }, [mode, tableNumber, setMode])
 
-  const { data: products, isLoading, isError, refetch } = useQuery({ queryKey: ['products'], queryFn: getProducts })
-  const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
-  const { data: highlights } = useQuery({ queryKey: ['highlights'], queryFn: getHighlightedProducts })
+  const { data: products, isLoading, isError, refetch } = useQuery({ queryKey: ['products', storeSlug ?? 'main'], queryFn: getProducts })
+  const { data: categories } = useQuery({ queryKey: ['categories', storeSlug ?? 'main'], queryFn: getCategories })
+  const { data: highlights } = useQuery({ queryKey: ['highlights', storeSlug ?? 'main'], queryFn: getHighlightedProducts })
+  const { data: storeSettings } = useQuery({ queryKey: ['storeSettings', storeSlug ?? 'main'], queryFn: getStoreSettings })
+  const { data: complementGroupsMap } = useQuery({ queryKey: ['complementGroupsMap', storeSlug ?? 'main'], queryFn: getAllComplementGroups })
+
+  const storeOpen = storeSettings?.isOpen === false ? false : isStoreOpen(storeSettings?.openingHours)
 
   const filtered = useMemo(() => {
     let list = activeCategory === 'all' ? products : products?.filter(p => p.categoryId === activeCategory)
@@ -55,7 +75,9 @@ export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitl
     <div style={{ minHeight: '100vh', paddingBottom: 100 }}>
       {/* Hero Header */}
       <div style={{
-        background: themeBg,
+        background: storeSettings?.logoUrl
+          ? `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(${storeSettings.logoUrl}) center/cover`
+          : themeBg,
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -86,6 +108,12 @@ export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitl
               {headerSubtitle}
             </p>
           )}
+          <div style={{ marginTop: 10 }}>
+            <span className={`store-status ${storeOpen ? 'open' : 'closed'}`}>
+              <span className="store-status-dot" />
+              {storeOpen ? 'Aberto agora' : 'Fechado'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -133,13 +161,13 @@ export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitl
                   key={p.id}
                   className="card card-hover"
                   style={{
-                    padding: 0, minWidth: 200, maxWidth: 220, flexShrink: 0, scrollSnapAlign: 'start',
+                    padding: 0, minWidth: 200, maxWidth: 240, flexShrink: 0, scrollSnapAlign: 'start',
                     overflow: 'hidden', borderRadius: 14, cursor: 'pointer',
                   }}
                   onClick={() => setHighlightModal({ product: p })}
                 >
                   <div style={{
-                    width: '100%', height: 100,
+                    width: '100%', height: 120,
                     background: `url(${p.image || ''}) center/cover`,
                     backgroundColor: '#f0f0f0',
                   }} />
@@ -168,9 +196,9 @@ export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitl
           </section>
         )}
 
-        {/* Category Tabs */}
+        {/* Category Tabs - Sticky */}
         {categories && !search && (
-          <div className="animate-fadeIn" style={{ marginTop: highlights?.length ? 0 : 24 }}>
+          <div className="category-tabs-sticky animate-fadeIn" style={{ marginTop: highlights?.length ? 0 : 24 }}>
             <div style={{
               display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8,
             }}>
@@ -217,7 +245,7 @@ export default function MenuView({ mode, tableNumber, headerTitle, headerSubtitl
           }}>
             {filtered?.map((p, i) => (
               <div key={p.id} style={{ animation: `slideUp .3s ${i * 0.03}s both` }}>
-                <ProductCard product={p} />
+                <ProductCard product={p} hasComplements={!!(complementGroupsMap && complementGroupsMap[p.id]?.length)} />
               </div>
             ))}
           </div>

@@ -3,8 +3,11 @@ import { dbAll, dbGet, dbRun } from '../database'
 
 const router = Router()
 
-router.get('/', (_req: Request, res: Response) => {
-  const tables = dbAll('SELECT * FROM tables ORDER BY number ASC')
+router.get('/', (req: Request, res: Response) => {
+  const since = req.query.since as string | undefined
+  const tables = since
+    ? dbAll('SELECT * FROM tables WHERE updated_at >= ? ORDER BY number ASC', [since])
+    : dbAll('SELECT * FROM tables ORDER BY number ASC')
   res.json(tables.map((t: any) => ({ ...t, isActive: !!t.is_active })))
 })
 
@@ -16,7 +19,7 @@ router.post('/', (req: Request, res: Response) => {
   if (existing) { res.status(400).json({ error: 'Mesa já existe' }); return }
 
   const id = 'tbl_' + Date.now() + Math.random().toString(36).slice(2, 6)
-  dbRun('INSERT INTO tables (id, number) VALUES (?, ?)', [id, number])
+  dbRun('INSERT INTO tables (id, number, updated_at) VALUES (?, ?, datetime(\'now\'))', [id, number])
   const table = dbGet('SELECT * FROM tables WHERE id = ?', [id])
   res.status(201).json({ ...table, isActive: !!table.is_active })
 })

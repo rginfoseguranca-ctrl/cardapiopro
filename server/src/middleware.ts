@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
 import path from 'path'
+import { runWithStoreScope } from './store-scope'
+import { dbGet, dbRun } from './database'
 
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
 
@@ -33,7 +35,12 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
       }
     }
 
-    next()
+    // Super admin opera globalmente; lojistas ficam escopados à própria loja
+    if (decoded.role === 'super_admin') {
+      next()
+    } else {
+      runWithStoreScope(decoded.storeId || 'main', () => next())
+    }
   } catch {
     res.status(401).json({ error: 'Token inválido' })
   }
@@ -41,10 +48,48 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
 export function adminMiddleware(req: Request, res: Response, next: NextFunction) {
   const user = (req as AuthRequest).user
-  if (!user || user.role !== 'admin') {
-    res.status(403).json({ error: 'Acesso restrito a administradores' })
+  if (!user || user.role !== 'super_admin') {
+    res.status(403).json({ error: 'Acesso restrito ao operador da plataforma' })
     return
   }
+  next()
+}
+
+// Resolves store context for public routes: valid JWT (non-blocking) wins, then
+// x-store-slug header, then store_slug/storeId query params. Leaves global (no scope)
+// when there is no context — writes default to the legacy 'main' store.
+export function resolveStoreScope(req: Request, res: Response, next: NextFunction) {
+  const auth = req.headers.authorization
+  if (auth) {
+    try {
+      const decoded = jwt.verify(auth.replace('Bearer ', ''), JWT_SECRET) as any
+      ;(req as AuthRequest).user = decoded
+      ;(req as AuthRequest).storeId = decoded.storeId || 'main'
+      if (decoded.role === 'super_admin') { next(); return }
+      runWithStoreScope(decoded.storeId || 'main', () => next())
+      return
+    } catch {
+      // Invalid token on a public route → treat as unauthenticated
+    }
+  }
+
+  const slug = (req.headers['x-store-slug'] as string) || (req.query.store_slug as string)
+  if (slug) {
+    const store = dbGet('SELECT id FROM stores WHERE slug = ?', [slug])
+    if (store) {
+      ;(req as AuthRequest).storeId = store.id
+      runWithStoreScope(store.id, () => next())
+      return
+    }
+  }
+
+  const storeId = (req.query.storeId as string)
+  if (storeId) {
+    ;(req as AuthRequest).storeId = storeId
+    runWithStoreScope(storeId, () => next())
+    return
+  }
+
   next()
 }
 
@@ -69,6 +114,34 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
   })
 }
 
+const _idempotencyCache = new Map<string, number>()
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, ts] of _idempotencyCache) {
+    if (now - ts > 86400000) _idempotencyCache.delete(key)
+  }
+}, 600000)
+
+export function idempotencyMiddleware(req: Request, res: Response, next: NextFunction) {
+  const key = req.headers['x-idempotency-key'] as string | undefined
+  if (!key) { next(); return }
+
+  if (_idempotencyCache.has(key)) {
+    res.status(409).json({ error: 'Operação já processada', duplicate: true })
+    return
+  }
+
+  const originalSend = res.send.bind(res)
+  res.send = function (body: any) {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      _idempotencyCache.set(key, Date.now())
+    }
+    return originalSend(body)
+  }
+
+  next()
+}
+
 const PLAN_LIMITS: Record<string, { maxProducts: number; maxOrdersMonth: number; maxUsers: number }> = {
   start:         { maxProducts: 100,  maxOrdersMonth: 2000,  maxUsers: 2 },
   profissional:  { maxProducts: 500,  maxOrdersMonth: 5000,  maxUsers: 5 },
@@ -78,27 +151,26 @@ const PLAN_LIMITS: Record<string, { maxProducts: number; maxOrdersMonth: number;
 export function planLimitMiddleware(resource: 'products' | 'orders' | 'users') {
   return (req: Request, res: Response, next: NextFunction) => {
     const storeId = (req as AuthRequest).storeId || 'main'
-    const sub = require('../database').dbGet('SELECT plan FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId])
+    const sub = dbGet('SELECT plan FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId])
     const plan = sub?.plan || 'start'
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.start
 
     if (plan === 'premium') { next(); return }
 
-    const db = require('../database')
     if (resource === 'products') {
-      const count = db.dbGet('SELECT COUNT(*) as c FROM products WHERE store_id = ?', [storeId])
+      const count = dbGet('SELECT COUNT(*) as c FROM products WHERE store_id = ?', [storeId])
       if (count?.c >= limits.maxProducts) {
         res.status(403).json({ error: `Limite de ${limits.maxProducts} produtos atingido. Atualize seu plano.`, limitType: 'products' })
         return
       }
     } else if (resource === 'orders') {
-      const count = db.dbGet("SELECT COUNT(*) as c FROM orders WHERE store_id = ? AND created_at >= DATE('now','start of month')", [storeId])
+      const count = dbGet("SELECT COUNT(*) as c FROM orders WHERE store_id = ? AND created_at >= DATE('now','start of month')", [storeId])
       if (count?.c >= limits.maxOrdersMonth) {
         res.status(403).json({ error: `Limite de ${limits.maxOrdersMonth} pedidos/mês atingido. Atualize seu plano.`, limitType: 'orders' })
         return
       }
     } else if (resource === 'users') {
-      const count = db.dbGet('SELECT COUNT(*) as c FROM users WHERE store_id = ?', [storeId])
+      const count = dbGet('SELECT COUNT(*) as c FROM users WHERE store_id = ?', [storeId])
       if (count?.c >= limits.maxUsers) {
         res.status(403).json({ error: `Limite de ${limits.maxUsers} usuários atingido. Atualize seu plano.`, limitType: 'users' })
         return

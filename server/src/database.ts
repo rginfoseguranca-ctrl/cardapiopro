@@ -4,6 +4,7 @@ import path from 'path'
 import bcrypt from 'bcrypt'
 import { v4 as uuid } from 'uuid'
 import crypto from 'crypto'
+import { applyStoreScope, getStoreScope } from './store-scope'
 
 const DB_PATH = path.join(__dirname, '..', '..', 'data', 'cardapio.db')
 
@@ -574,7 +575,9 @@ function initTables() {
   `)
 }
 
-function dbAll(sql: string, params?: any[]): any[] {
+// Executa SQL sem reescrita de escopo (camada de repositories).
+// Os repositórios injetam store_id explicitamente como parâmetro.
+function rawAll(sql: string, params?: any[]): any[] {
   const stmt = db.prepare(sql)
   if (params) stmt.bind(params)
   const results: any[] = []
@@ -585,14 +588,29 @@ function dbAll(sql: string, params?: any[]): any[] {
   return results
 }
 
+function rawGet(sql: string, params?: any[]): any {
+  const results = rawAll(sql, params)
+  return results.length > 0 ? results[0] : null
+}
+
+function rawRun(sql: string, params?: any[]): void {
+  db.run(sql, params)
+  saveDb()
+}
+
+function dbAll(sql: string, params?: any[]): any[] {
+  const scoped = applyStoreScope(sql, params ?? [], getStoreScope())
+  return rawAll(scoped ? scoped.sql : sql, scoped ? scoped.params : params)
+}
+
 function dbGet(sql: string, params?: any[]): any {
   const results = dbAll(sql, params)
   return results.length > 0 ? results[0] : null
 }
 
 function dbRun(sql: string, params?: any[]): void {
-  db.run(sql, params)
-  saveDb()
+  const scoped = applyStoreScope(sql, params ?? [], getStoreScope())
+  rawRun(scoped ? scoped.sql : sql, scoped ? scoped.params : params)
 }
 
 function hasColumn(table: string, column: string): boolean {
@@ -622,6 +640,7 @@ function runMigrations(): void {
   addColumnIfMissing('company_settings', 'delivery_fee', 'REAL DEFAULT 0')
   addColumnIfMissing('company_settings', 'free_delivery_from', 'REAL DEFAULT 0')
   addColumnIfMissing('company_settings', 'avisos', "TEXT DEFAULT '[]'")
+  addColumnIfMissing('company_settings', 'is_open', 'INTEGER DEFAULT 1')
   db.run(`
     CREATE TABLE IF NOT EXISTS delivery_areas (
       id TEXT PRIMARY KEY,
@@ -640,8 +659,10 @@ function runMigrations(): void {
   addColumnIfMissing('users', 'must_change_password', 'INTEGER DEFAULT 0')
   addColumnIfMissing('users', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('categories', 'store_id', "TEXT DEFAULT 'main'")
+  addColumnIfMissing('categories', 'updated_at', "TEXT DEFAULT (datetime('now'))")
   addColumnIfMissing('products', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('customers', 'store_id', "TEXT DEFAULT 'main'")
+  addColumnIfMissing('customers', 'updated_at', "TEXT DEFAULT (datetime('now'))")
   addColumnIfMissing('coupons', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('loyalty_points', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('loyalty_rewards', 'store_id', "TEXT DEFAULT 'main'")
@@ -649,6 +670,7 @@ function runMigrations(): void {
   addColumnIfMissing('campaigns', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('abandoned_carts', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('tables', 'store_id', "TEXT DEFAULT 'main'")
+  addColumnIfMissing('tables', 'updated_at', "TEXT DEFAULT (datetime('now'))")
   addColumnIfMissing('printers', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('inventory', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('inventory_movements', 'store_id', "TEXT DEFAULT 'main'")
@@ -672,9 +694,10 @@ function runMigrations(): void {
   addColumnIfMissing('combos', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('reviews', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('store_settings', 'store_id', "TEXT DEFAULT 'main'")
+  dbRun("UPDATE users SET role = 'super_admin' WHERE email = 'admin@local' AND role != 'super_admin'")
 }
 
-export { dbAll, dbGet, dbRun }
+export { dbAll, dbGet, dbRun, rawAll, rawGet, rawRun }
 
 function seedData() {
   const result = dbGet('SELECT COUNT(*) as count FROM categories')
@@ -733,14 +756,12 @@ function seedData() {
       [p.id, p.name, p.desc, p.price, null, p.img || '', p.cat, p.hl, 1, JSON.stringify(p.ings)])
   }
 
-  const adminExists = dbGet('SELECT id FROM users WHERE email = ?', ['admin@index.local'])
+  const adminExists = dbGet('SELECT id FROM users WHERE email = ?', ['admin@local'])
   if (!adminExists) {
-    const tempPassword = crypto.randomBytes(12).toString('base64url')
-    const hash = bcrypt.hashSync(tempPassword, 10)
-    dbRun('INSERT INTO users (id, name, email, password, role, must_change_password) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuid(), 'Administrador', 'admin@index.local', hash, 'admin', 1])
-    console.log(`[SEED] Admin temporário: admin@index.local / ${tempPassword}`)
-    console.log(`[SEED] IMPORTANTE: Altere a senha e o email após o primeiro login!`)
+    const hash = bcrypt.hashSync('admin123', 10)
+    dbRun('INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)',
+      [uuid(), 'Administrador', 'admin@local', hash, 'super_admin'])
+    console.log(`[SEED] Admin criado: admin@local / admin123`)
   }
 
   const storeExists = dbGet('SELECT id FROM company_settings WHERE id = ?', ['main'])

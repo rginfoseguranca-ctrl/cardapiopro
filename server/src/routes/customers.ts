@@ -25,10 +25,15 @@ router.get('/', (req: Request, res: Response) => {
   const search = req.query.search as string || ''
   const tag = req.query.tag as string || ''
   const minOrders = Number(req.query.minOrders) || 0
+  const since = req.query.since as string || ''
 
   let sql = 'SELECT * FROM customers WHERE 1=1'
   const params: any[] = []
 
+  if (since) {
+    sql += ' AND updated_at >= ?'
+    params.push(since)
+  }
   if (search) {
     sql += ' AND (name LIKE ? OR phone LIKE ?)'
     params.push(`%${search}%`, `%${search}%`)

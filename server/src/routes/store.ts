@@ -71,15 +71,17 @@ router.get('/', (req: Request, res: Response) => {
       paymentPixKey: '', paymentPixName: '', paymentCardInfo: '', paymentCashInfo: '',
       footerText: '', schedulingEnabled: false,
       logoUrl: '', whatsapp: '', openingHours: {},
-      deliveryFee: 0, freeDeliveryFrom: 0, avisos: [],
+      deliveryFee: 0, freeDeliveryFrom: 0, avisos: [], slug: '',
     })
     return
   }
   let openingHours = {}
   try { openingHours = JSON.parse(settings.opening_hours || '{}') } catch { /* ignore */ }
+  const store = dbGet('SELECT slug FROM stores WHERE id = ?', [storeId])
   res.json({
     storeName: settings.store_name,
     storeIcon: settings.store_icon,
+    slug: store?.slug || '',
     primaryColor: settings.primary_color,
     primaryDark: settings.primary_dark,
     paymentPixKey: settings.payment_pix_key,
@@ -91,9 +93,10 @@ router.get('/', (req: Request, res: Response) => {
     logoUrl: settings.logo_url || '',
     whatsapp: settings.whatsapp || '',
     openingHours,
-    deliveryFee: settings.delivery_fee || 0,
-    freeDeliveryFrom: settings.free_delivery_from || 0,
-    avisos: (() => { try { return JSON.parse(settings.avisos || '[]') } catch { return [] } })(),
+      deliveryFee: settings.delivery_fee || 0,
+      freeDeliveryFrom: settings.free_delivery_from || 0,
+      avisos: (() => { try { return JSON.parse(settings.avisos || '[]') } catch { return [] } })(),
+      isOpen: settings.is_open !== undefined ? Boolean(settings.is_open) : true,
   })
 })
 
@@ -119,6 +122,10 @@ router.put('/', authMiddleware, (req: Request, res: Response) => {
   if (req.body.schedulingEnabled !== undefined) {
     fields.push('scheduling_enabled = ?')
     values.push(req.body.schedulingEnabled ? 1 : 0)
+  }
+  if (req.body.isOpen !== undefined) {
+    fields.push('is_open = ?')
+    values.push(req.body.isOpen ? 1 : 0)
   }
   if (req.body.openingHours !== undefined) {
     fields.push('opening_hours = ?')

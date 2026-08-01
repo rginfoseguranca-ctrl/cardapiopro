@@ -148,6 +148,15 @@ async function main() {
   })
   app.use('/api/', globalLimiter)
 
+  // Idempotency for sync (POST/PUT/PATCH/DELETE)
+  app.use('/api/', (req, res, next) => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      idempotencyMiddleware(req, res, next)
+    } else {
+      next()
+    }
+  })
+
   // Stricter rate limit for auth endpoints
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -157,6 +166,7 @@ async function main() {
     message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
   })
   app.use('/api/auth/login', authLimiter)
+  app.use('/api/auth/register', authLimiter)
 
   // Health check
   app.get('/health', (_req, res) => {
@@ -172,24 +182,24 @@ async function main() {
   // SaaS Admin (super-admin only)
   app.use('/api/saas', authMiddleware, adminMiddleware, saasAdminRouter)
 
-  // Public read routes
-  app.use('/api/products', productsRouter)
-  app.use('/api/orders', ordersRouter)
-  app.use('/api/promotions', promotionsRouter)
-  app.use('/api/reviews', reviewsRouter)
-  app.use('/api/chat', chatRouter)
+  // Public read routes (store context resolved via JWT/slug; no auth required)
+  app.use('/api/products', resolveStoreScope, productsRouter)
+  app.use('/api/orders', resolveStoreScope, ordersRouter)
+  app.use('/api/promotions', resolveStoreScope, promotionsRouter)
+  app.use('/api/reviews', resolveStoreScope, reviewsRouter)
+  app.use('/api/chat', resolveStoreScope, chatRouter)
   app.use('/api/notifications', notificationsRouter)
   app.use('/api/viacep', viacepRouter)
   app.use('/api/webhooks/payment', paymentWebhooksRouter)
   app.use('/api/webhooks/integrations', integrationsWebhookRouter)
 
   // Public customer-facing routes
-  app.use('/api/customers/public', customersPublicRouter)
-  app.use('/api/store', storeRouter)
-  app.use('/api/coupons', couponsRouter)
-  app.use('/api/complements', complementsRouter)
-  app.use('/api/blog', blogRouter)
-  app.use('/api/stores', storesRouter)
+  app.use('/api/customers/public', resolveStoreScope, customersPublicRouter)
+  app.use('/api/store', resolveStoreScope, storeRouter)
+  app.use('/api/coupons', resolveStoreScope, couponsRouter)
+  app.use('/api/complements', resolveStoreScope, complementsRouter)
+  app.use('/api/blog', resolveStoreScope, blogRouter)
+  app.use('/api/stores', resolveStoreScope, storesRouter)
 
   // Protected routes (auth required)
   app.use('/api/partners', authMiddleware, partnersRouter)

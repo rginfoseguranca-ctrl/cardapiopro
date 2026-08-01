@@ -12,6 +12,12 @@ function getClients(orderId: string): Set<Response> {
   return clients.get(orderId)!
 }
 
+function sanitizeForPublic(data: any) {
+  if (!data || typeof data !== 'object' || !data.order || typeof data.order !== 'object') return data
+  const { customerName, customerPhone, customer_id, delivery_address, notes, items, ...rest } = data.order
+  return { ...data, order: rest }
+}
+
 export function notifyOrder(orderId: string, data: object) {
   const msg = `data: ${JSON.stringify(data)}\n\n`
   const orderClients = getClients(orderId)
@@ -28,9 +34,11 @@ export function notifyAll(data: object) {
       try { res.write(msg) } catch { orderClients.delete(res) }
     })
   })
-  // Send to global stream clients (KDS)
+  // Send to global stream clients (KDS) — PII redacted
+  const sanitized = sanitizeForPublic(data)
+  const sanitizedMsg = `data: ${JSON.stringify(sanitized)}\n\n`
   globalClients.forEach(res => {
-    try { res.write(msg) } catch { globalClients.delete(res) }
+    try { res.write(sanitizedMsg) } catch { globalClients.delete(res) }
   })
 }
 

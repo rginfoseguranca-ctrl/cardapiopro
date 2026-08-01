@@ -17,7 +17,10 @@ router.get('/phone/:phone/orders', (req: Request, res: Response) => {
   const orders = dbAll('SELECT * FROM orders WHERE customer_phone = ? ORDER BY created_at DESC', [customer.phone])
   res.json({
     customer: { ...customer, tags: JSON.parse(customer.tags || '[]') },
-    orders: orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) }))
+    orders: orders.map((o: any) => {
+      const { delivery_address, notes, ...safe } = o
+      return { ...safe, items: JSON.parse(o.items) }
+    })
   })
 })
 
