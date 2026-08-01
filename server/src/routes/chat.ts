@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { dbAll, dbGet } from '../database'
+import { getStoreSetting } from '../repositories/fixtures'
 
 const router = Router()
 
@@ -23,7 +23,7 @@ const responses: { patterns: RegExp[]; reply: string }[] = [
 ]
 
 async function aiReply(message: string): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY || dbGet("SELECT value FROM store_settings WHERE key = 'openai_api_key'")?.value
+  const apiKey = process.env.OPENAI_API_KEY || getStoreSetting(null, 'openai_api_key')
   if (!apiKey) return null
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {

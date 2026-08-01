@@ -1,25 +1,27 @@
 import { Router, Request, Response } from 'express'
-import { dbRun } from '../database'
+import { tablesRepository } from '../repositories/tables'
 import { authMiddleware, AuthRequest } from '../middleware'
 
 const router = Router()
 
+function storeId(req: Request): string | null {
+  return (req as AuthRequest).storeId || 'main'
+}
+
 router.patch('/:id/occupy', authMiddleware, (req: Request, res: Response) => {
   const { id } = req.params
   const { customer_name, customer_phone } = req.body
-  const table = dbRun(
-    'UPDATE tables SET is_occupied = 1, customer_name = ?, customer_phone = ? WHERE id = ?',
-    [customer_name || '', customer_phone || '', id]
-  )
+  tablesRepository.update(storeId(req), String(id), {
+    is_occupied: 1, customer_name: customer_name || '', customer_phone: customer_phone || '',
+  })
   res.json({ success: true })
 })
 
 router.patch('/:id/release', authMiddleware, (req: Request, res: Response) => {
   const { id } = req.params
-  dbRun(
-    'UPDATE tables SET is_occupied = 0, customer_name = NULL, customer_phone = NULL WHERE id = ?',
-    [id]
-  )
+  tablesRepository.update(storeId(req), String(id), {
+    is_occupied: 0, customer_name: null, customer_phone: null,
+  })
   res.json({ success: true })
 })
 

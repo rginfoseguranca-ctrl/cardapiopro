@@ -1,10 +1,16 @@
 import { Router, Request, Response } from 'express'
-import { dbAll } from '../database'
+import { promotionsRepository } from '../repositories/promotions'
+import { combosRepository } from '../repositories/combos'
+import { AuthRequest } from '../middleware'
 
 const router = Router()
 
-router.get('/', (_req: Request, res: Response) => {
-  const promotions = dbAll('SELECT * FROM promotions WHERE is_active = 1')
+function storeId(req: Request): string | null {
+  return (req as AuthRequest).storeId || 'main'
+}
+
+router.get('/', (req: Request, res: Response) => {
+  const promotions = promotionsRepository.findAll(storeId(req), 'is_active = 1')
   res.json(promotions.map(p => ({
     id: p.id,
     title: p.title,
@@ -18,8 +24,8 @@ router.get('/', (_req: Request, res: Response) => {
   })))
 })
 
-router.get('/combos', (_req: Request, res: Response) => {
-  const combos = dbAll('SELECT * FROM combos WHERE is_active = 1')
+router.get('/combos', (req: Request, res: Response) => {
+  const combos = combosRepository.findAll(storeId(req), 'is_active = 1')
   res.json(combos.map(c => ({
     id: c.id,
     name: c.name,
