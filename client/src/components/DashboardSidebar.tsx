@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
 
 interface MenuItem {
   key: string
@@ -12,6 +14,7 @@ const menuSections: { title?: string; items: MenuItem[] }[] = [
   {
     items: [
       { key: 'orders', icon: '📋', label: 'Gestão de Pedidos', badge: 0 },
+      { key: 'pdv', icon: '🛒', label: 'PDV' },
       { key: 'tables', icon: '🪑', label: 'Mesas e Comandas' },
       { key: 'kds', icon: '🍳', label: 'KDS' },
       { key: 'caixa', icon: '💰', label: 'Caixa' },
@@ -110,6 +113,9 @@ export default function DashboardSidebar({
     financeiro: true,
   })
 
+  const navigate = useNavigate()
+  const user = useAuth(s => s.user)
+
   const toggleGroup = (key: string) => {
     setOpenGroups(g => ({ ...g, [key]: !g[key] }))
   }
@@ -192,6 +198,13 @@ export default function DashboardSidebar({
             </div>
           ))}
         </nav>
+
+        {user?.role === 'super_admin' && (
+          <div className="sidebar-item" onClick={() => { navigate('/admin'); if (mobileOpen) onMobileClose() }}>
+            <span className="sidebar-item-icon">🌐</span>
+            <span className="sidebar-label">Plataforma (Super Admin)</span>
+          </div>
+        )}
 
         <div className="sidebar-footer">
           <span className="sidebar-item-icon">🔒</span>

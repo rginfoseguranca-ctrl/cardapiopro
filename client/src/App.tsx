@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
+import { useCart } from './hooks/useCart'
+import { Routes, Route, Link, useLocation, useParams, Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getStoreSettings, type StoreSettings, isDesktop } from './api/client'
+import { getStoreSettings, type StoreSettings, isDesktop, setActiveStoreSlug } from './api/client'
 import Header from './components/Header'
 import CartDrawer from './components/CartDrawer'
+import CartBottomBar from './components/CartBottomBar'
 import ChatBot from './components/ChatBot'
 import ToastContainer from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -37,19 +39,35 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import AdminPage from './pages/admin/AdminPage'
 import Materiais from './pages/Materiais'
+import Assinaturas from './pages/Assinaturas'
+import PDV from './pages/PDV'
 
-const HIDE_HEADER_PATHS = ['/dashboard', '/admin', '/kds']
+const HIDE_HEADER_PATHS = ['/dashboard', '/admin', '/kds', '/pdv']
+
+function MenuHome({ onCartClick }: { onCartClick: () => void }) {
+  const { slug } = useParams<{ slug: string }>()
+  return <Home onCartClick={onCartClick} slug={slug} />
+}
 
 export default function App() {
   const location = useLocation()
   const [cartOpen, setCartOpen] = useState(false)
-  const { data: settings } = useQuery({ queryKey: ['storeSettings'], queryFn: getStoreSettings })
+  const cartItems = useCart(s => s.items)
+  const [routeSlug, setRouteSlug] = useState<string | null>(null)
+  const { data: settings } = useQuery({ queryKey: ['storeSettings', routeSlug ?? 'main'], queryFn: getStoreSettings })
 
   const isAppPage = HIDE_HEADER_PATHS.some(p => location.pathname.startsWith(p)) ||
     location.pathname.startsWith('/mesa/') ||
     location.pathname === '/balcao'
 
   const isLanding = location.pathname === '/'
+
+  useEffect(() => {
+    const m = location.pathname.match(/^\/menu\/([^/]+)/)
+    const slug = m ? m[1] : null
+    setRouteSlug(slug)
+    setActiveStoreSlug(slug)
+  }, [location.pathname])
 
   useEffect(() => {
     if (settings) {
@@ -72,6 +90,7 @@ export default function App() {
         <>
           <Header onCartClick={() => setCartOpen(true)} storeIcon={storeIcon} storeName={storeName} whatsapp={settings?.whatsapp} />
           <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+          {!isDesktop && cartItems.length > 0 && <CartBottomBar onCartClick={() => setCartOpen(true)} />}
           <ChatBot />
         </>
       )}
@@ -80,6 +99,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={isDesktop ? <Navigate to="/login" replace /> : <Landing />} />
         <Route path="/cardapio" element={<Home onCartClick={() => setCartOpen(true)} />} />
+        <Route path="/menu/:slug" element={<MenuHome onCartClick={() => setCartOpen(true)} />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/order/:id" element={<OrderStatus />} />
         <Route path="/login" element={<Login />} />
@@ -88,6 +108,7 @@ export default function App() {
         <Route path="/redefinir-senha" element={<ResetPassword />} />
         <Route path="/mesa/:number" element={<MesaMenu />} />
         <Route path="/balcao" element={<Balcao />} />
+        <Route path="/pdv" element={<ProtectedRoute><PDV standalone /></ProtectedRoute>} />
         <Route path="/kds" element={<KDS />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/dashboard/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
@@ -103,11 +124,12 @@ export default function App() {
         <Route path="/privacidade" element={<Privacy />} />
         <Route path="/termos" element={<Terms />} />
         <Route path="/materiais" element={<Materiais />} />
+        <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 
-      {!isAppPage && !isLanding && (
+      {!isAppPage && !isLanding && !isDesktop && (
         <footer style={{
           background: '#2c3e50', color: '#fff', padding: '24px 0', marginTop: 40,
           textAlign: 'center', fontSize: '.85rem'

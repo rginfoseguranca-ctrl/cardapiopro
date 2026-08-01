@@ -4,9 +4,15 @@ import { isElectron, electronApi } from './electron-adapter'
 const baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
 export const api = axios.create({ baseURL })
 
+let activeStoreSlug: string | null = null
+export function setActiveStoreSlug(slug: string | null) {
+  activeStoreSlug = slug
+}
+
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  if (!token && activeStoreSlug) config.headers['x-store-slug'] = activeStoreSlug
   return config
 })
 
@@ -14,9 +20,8 @@ export const isDesktop = isElectron()
 
 if (isDesktop) {
   const w = window.electronAPI!
-  const methods: Record<string, (...args: any[]) => Promise<any>> = {}
 
-  function matchRoute(method: string, url: string, data?: any, params?: any): Promise<any> | null {
+  function matchRoute(method: string, url: string, data?: any, params?: any): any {
     const clean = url.replace(/^\/api/, '').replace(/^\//, '')
 
     if (method === 'GET' && clean === 'products/all') return w.products.listAll()
@@ -25,7 +30,15 @@ if (isDesktop) {
     if (method === 'GET' && clean.startsWith('products/categories')) return w.categories.list()
     if (method === 'GET' && clean.startsWith('products/')) return w.products.get(clean.split('/')[1])
     if (method === 'POST' && clean === 'products') return w.products.create(data)
-    if (method === 'POST' && clean === 'products/upload-image') return { imageUrl: `local://images/${data?.name || 'upload'}` }
+    if (method === 'POST' && clean === 'products/upload-image') {
+      const file = data?.get?.('image') || data?.image
+      if (file && file instanceof File) {
+        return file.arrayBuffer().then((buffer: ArrayBuffer) =>
+          window.electronAPI!.images.cacheFromBuffer(file.name, buffer).then((localPath: string) => ({ imageUrl: localPath || `local://images/${file.name}` }))
+        )
+      }
+      return { imageUrl: `local://images/${data?.name || 'upload'}` }
+    }
     if (method === 'PUT' && clean.startsWith('products/categories/')) return w.categories.update(clean.split('/')[2], data)
     if (method === 'POST' && clean === 'products/categories') return w.categories.create(data)
     if (method === 'DELETE' && clean.startsWith('products/categories/')) return w.categories.delete(clean.split('/')[2])
@@ -75,7 +88,8 @@ if (isDesktop) {
     if (method === 'DELETE' && clean.startsWith('complements/groups/')) return w.complements.deleteGroup(clean.split('/')[2])
     if (method === 'POST' && clean === 'complements') return w.complements.createItem(data)
     if (method === 'POST' && clean === 'complements/price') return { price: 0 }
-    if (method === 'PUT' && clean.startsWith('complements/')) return w.complements.createItem({ ...data, id: clean.split('/')[1] })
+    if (method === 'PUT' && clean.startsWith('complements/groups/')) return w.complements.updateGroup(clean.split('/')[3], data)
+    if (method === 'PUT' && clean.startsWith('complements/')) return w.complements.updateItem(clean.split('/')[1], data)
     if (method === 'DELETE' && clean.startsWith('complements/')) return w.complements.deleteItem(clean.split('/')[1])
 
     if (method === 'GET' && clean === 'customers') return w.customers.list()
@@ -94,62 +108,64 @@ if (isDesktop) {
     if (method === 'DELETE' && clean.match(/^finance\//)) return null
     if (method === 'PATCH' && clean.match(/^finance\//)) return null
 
-    if (method === 'GET' && clean === 'drivers') return []
-    if (method === 'GET' && clean === 'drivers/available') return []
-    if (method === 'POST' && clean === 'drivers') return { id: 'local-' + Date.now(), ...data, is_active: true }
-    if (method === 'PUT' && clean.startsWith('drivers/')) return data
-    if (method === 'DELETE' && clean.startsWith('drivers/')) return null
-    if (method === 'PATCH' && clean.startsWith('drivers/')) return data
+    if (method === 'GET' && clean === 'finance/accounts') return []
+    if (method === 'POST' && clean === 'finance/accounts') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'DELETE' && clean.match(/^finance\/accounts\//)) return null
+    if (method === 'GET' && clean === 'finance/categories') return []
+    if (method === 'POST' && clean === 'finance/categories') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'DELETE' && clean.match(/^finance\/categories\//)) return null
+    if (method === 'GET' && clean === 'finance/transactions') return []
+    if (method === 'POST' && clean === 'finance/transactions') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'DELETE' && clean.match(/^finance\/transactions\//)) return null
+    if (method === 'PATCH' && clean.match(/^finance\/transactions\/[^/]+\/pay$/)) return null
+    if (method === 'GET' && clean === 'finance/recurring') return []
+    if (method === 'POST' && clean === 'finance/recurring') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'DELETE' && clean.match(/^finance\/recurring\//)) return null
+    if (method === 'GET' && clean === 'finance/summary') return { totalBalance: 0, accountsCount: 0, pendingTransactions: 0 }
 
-    if (method === 'GET' && clean === 'stores') return []
-    if (method === 'POST' && clean === 'stores') return { id: 'local-' + Date.now(), ...data }
-    if (method === 'PUT' && clean.startsWith('stores/')) return data
-    if (method === 'DELETE' && clean.startsWith('stores/')) return null
+    if (method === 'GET' && clean === 'drivers') return null
+    if (method === 'GET' && clean === 'drivers/available') return null
+    if (method === 'GET' && clean.match(/^drivers\/deliveries/)) return null
+    if (method === 'GET' && clean === 'drivers/performance') return null
+    if (method === 'PATCH' && clean.match(/^drivers\/deliveries\//)) return null
 
-    if (method === 'GET' && clean.startsWith('supplies/')) return []
-    if (method === 'POST' && clean.startsWith('supplies/')) return { id: 'local-' + Date.now(), ...data }
-    if (method === 'PUT' && clean.startsWith('supplies/')) return data
-    if (method === 'DELETE' && clean.startsWith('supplies/')) return null
+    if (method === 'GET' && clean === 'stores') return null
+    if (method === 'GET' && clean.match(/^stores\/[^/]+\/stats$/)) return null
+    if (method === 'GET' && clean === 'stores/summary/all') return null
 
-    if (method === 'GET' && clean.startsWith('delivery')) return []
-    if (method === 'POST' && clean.startsWith('delivery')) return { id: 'local-' + Date.now(), ...data }
-    if (method === 'PUT' && clean.startsWith('delivery')) return data
-    if (method === 'DELETE' && clean.startsWith('delivery')) return null
-    if (method === 'PATCH' && clean.startsWith('delivery')) return data
+    if (method === 'GET' && clean.startsWith('supplies/')) return null
+    if (method === 'GET' && clean.startsWith('supplies/recipes')) return null
 
-    if (method === 'GET' && clean === 'printers') return []
-    if (method === 'POST' && clean === 'printers') return { id: 'local-' + Date.now(), ...data }
-    if (method === 'DELETE' && clean.startsWith('printers/')) return null
+    if (method === 'GET' && clean.startsWith('delivery') && clean !== 'delivery') return null
 
-    if (method === 'GET' && clean === 'campaigns') return []
-    if (method === 'POST' && clean === 'campaigns') return { id: 'local-' + Date.now(), ...data }
-    if (method === 'DELETE' && clean.startsWith('campaigns/')) return null
+    if (method === 'GET' && clean === 'printers') return null
 
-    if (method === 'GET' && clean.startsWith('cashback/')) return { balance: 0 }
+    if (method === 'GET' && clean === 'campaigns') return null
+
+    if (method === 'GET' && clean.startsWith('cashback/')) return null
     if (method === 'POST' && clean === 'cashback/settings') return null
 
-    if (method === 'GET' && clean === 'abandoned') return []
-    if (method === 'POST' && clean === 'abandoned') return { id: 'local-' + Date.now(), ...data }
-    if (method === 'PATCH' && clean.startsWith('abandoned/')) return data
+    if (method === 'GET' && clean === 'abandoned') return null
+    if (method === 'PATCH' && clean.startsWith('abandoned/')) return null
 
-    if (method === 'GET' && clean === 'integrations') return {}
-    if (method === 'POST' && clean === 'integrations') return null
+    if (method === 'GET' && clean === 'integrations') return w.integrations.list()
+    if (method === 'POST' && clean === 'integrations') { w.integrations.save(data.key, data.value); return { success: true } }
 
-    if (method === 'GET' && clean === 'invoices') return []
-    if (method === 'POST' && clean === 'invoices') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'GET' && clean === 'invoices') return null
+    if (method === 'POST' && clean === 'invoices') return null
 
-    if (method === 'GET' && clean === 'blog') return []
-    if (method === 'GET' && clean === 'blog/all') return []
+    if (method === 'GET' && clean === 'blog') return null
+    if (method === 'GET' && clean === 'blog/all') return null
     if (method === 'GET' && clean.startsWith('blog/')) return null
-    if (method === 'POST' && clean === 'blog') return { id: 'local-' + Date.now(), ...data }
-    if (method === 'PATCH' && clean.startsWith('blog/')) return data
+    if (method === 'POST' && clean === 'blog') return null
+    if (method === 'PATCH' && clean.startsWith('blog/')) return null
     if (method === 'DELETE' && clean.startsWith('blog/')) return null
 
-    if (method === 'GET' && clean === 'partners') return []
-    if (method === 'POST' && clean === 'partners') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'GET' && clean === 'partners') return null
+    if (method === 'POST' && clean === 'partners') return null
 
-    if (method === 'GET' && clean === 'leads') return []
-    if (method === 'POST' && clean === 'leads') return { id: 'local-' + Date.now(), ...data }
+    if (method === 'GET' && clean === 'leads') return null
+    if (method === 'POST' && clean === 'leads') return null
 
     if (method === 'GET' && clean === 'saas/stats') return { stores: { total: 0 }, users: { total: 0 }, orders: { total: 0, recent: [] }, subscriptions: { active: 0, trialing: 0, canceled: 0 }, revenue: { total: 0 } }
     if (method === 'GET' && clean === 'saas/stores') return []
@@ -168,6 +184,8 @@ if (isDesktop) {
 
     if (method === 'POST' && clean === 'chat') return { reply: 'Chatbot indisponível no modo offline.' }
 
+    if (method === 'POST' && clean === 'settings/server-url') return w.sync.setServerUrl(data.url)
+
     return null
   }
 
@@ -177,27 +195,27 @@ if (isDesktop) {
   const origDelete = api.delete.bind(api)
   const origPatch = api.patch.bind(api)
 
-  api.get = async (url: string, config?: any) => {
+  api.get = async (url: string, config?: any): Promise<any> => {
     const result = await matchRoute('GET', url, undefined, config?.params)
     if (result !== null && result !== undefined) return { data: result }
     return origGet(url, config)
   }
-  api.post = async (url: string, data?: any, config?: any) => {
+  api.post = async (url: string, data?: any, config?: any): Promise<any> => {
     const result = await matchRoute('POST', url, data, config?.params)
     if (result !== null && result !== undefined) return { data: result }
     return origPost(url, data, config)
   }
-  api.put = async (url: string, data?: any, config?: any) => {
+  api.put = async (url: string, data?: any, config?: any): Promise<any> => {
     const result = await matchRoute('PUT', url, data, config?.params)
     if (result !== null && result !== undefined) return { data: result }
     return origPut(url, data, config)
   }
-  api.delete = async (url: string, config?: any) => {
+  api.delete = async (url: string, config?: any): Promise<any> => {
     const result = await matchRoute('DELETE', url, undefined, config?.params)
     if (result !== null && result !== undefined) return { data: result }
     return origDelete(url, config)
   }
-  api.patch = async (url: string, data?: any, config?: any) => {
+  api.patch = async (url: string, data?: any, config?: any): Promise<any> => {
     const result = await matchRoute('PATCH', url, data, config?.params)
     if (result !== null && result !== undefined) return { data: result }
     return origPatch(url, data, config)
@@ -211,6 +229,7 @@ export interface Product {
   price: number
   pricePromotional?: number
   image: string
+  barcode?: string
   categoryId: string
   categoryName: string
   categoryIcon: string
@@ -305,7 +324,7 @@ export async function getAllProducts(): Promise<Product[]> {
   const { data } = await api.get('/products/all')
   return data
 }
-export async function createProduct(product: { name: string; price: number; description?: string; pricePromotional?: number; image?: string; categoryId?: string; isHighlighted?: boolean; isAvailable?: boolean; ingredients?: string[] }): Promise<Product> {
+export async function createProduct(product: { name: string; price: number; description?: string; pricePromotional?: number; image?: string; barcode?: string; categoryId?: string; isHighlighted?: boolean; isAvailable?: boolean; ingredients?: string[] }): Promise<Product> {
   if (isDesktop) return electronApi.products.create(product)
   const { data } = await api.post('/products', product)
   return data
@@ -345,8 +364,9 @@ export async function getHighlightedProducts(): Promise<Product[]> {
 }
 export async function uploadProductImage(file: File): Promise<{ imageUrl: string }> {
   if (isDesktop) {
-    const path = window.electronAPI!.getPath('userData')
-    return { imageUrl: `local://images/${file.name}` }
+    const buffer = await file.arrayBuffer()
+    const localPath = await window.electronAPI!.images.cacheFromBuffer(file.name, buffer)
+    return { imageUrl: localPath || `local://images/${file.name}` }
   }
   const formData = new FormData()
   formData.append('image', file)
@@ -369,6 +389,7 @@ export async function createOrder(order: {
   scheduledAt?: string
   couponCode?: string
   couponDiscount?: number
+  discount?: number
 }): Promise<Order> {
   if (isDesktop) return electronApi.orders.create(order)
   const { data } = await api.post('/orders', order)
@@ -511,10 +532,12 @@ export async function recoverCart(id: string) {
 
 // Integrations
 export async function getIntegrations() {
+  if (isDesktop) return electronApi.integrations.list()
   const { data } = await api.get('/integrations')
   return data
 }
 export async function setIntegration(key: string, value: string) {
+  if (isDesktop) return electronApi.integrations.save(key, value)
   const { data } = await api.post('/integrations', { key, value })
   return data
 }
@@ -569,6 +592,10 @@ export async function createDeliveryRoute(route: { orderId?: string; address: st
 }
 export async function updateDeliveryStatus(id: string, status: string) {
   const { data } = await api.patch(`/delivery/${id}/status`, { status })
+  return data
+}
+export async function getDeliveryAreas() {
+  const { data } = await api.get('/delivery-areas')
   return data
 }
 
@@ -663,6 +690,8 @@ export interface StoreSettings {
   deliveryFee: number
   freeDeliveryFrom: number
   avisos?: { id: string; title: string; description: string; imageUrl: string; active: boolean }[]
+  isOpen?: boolean
+  slug?: string
 }
 export async function getStoreSettings(): Promise<StoreSettings> {
   if (isDesktop) return electronApi.store.get()
@@ -696,6 +725,45 @@ export async function createCoupon(coupon: {
   return data
 }
 export async function validateCoupon(code: string, orderValue?: number) {
+  if (isDesktop) {
+    const all = (await electronApi.coupons.list()) as any[]
+    const coupon = (all || []).find((c: any) => (c.code || c.coupon_code || '').toUpperCase() === code.toUpperCase() && c.is_active !== 0 && c.is_active !== false)
+    if (!coupon) {
+      const err: any = new Error('Cupom não encontrado')
+      err.response = { data: { error: 'Cupom não encontrado' } }
+      throw err
+    }
+    const now = new Date().toISOString()
+    if (coupon.starts_at && now < coupon.starts_at) {
+      const err: any = new Error('Cupom ainda não está disponível')
+      err.response = { data: { error: 'Cupom ainda não está disponível' } }
+      throw err
+    }
+    if (coupon.expires_at && now > coupon.expires_at) {
+      const err: any = new Error('Cupom expirado')
+      err.response = { data: { error: 'Cupom expirado' } }
+      throw err
+    }
+    if (Number(coupon.max_uses) > 0 && Number(coupon.used_count || 0) >= Number(coupon.max_uses)) {
+      const err: any = new Error('Cupom já atingiu o limite de usos')
+      err.response = { data: { error: 'Cupom já atingiu o limite de usos' } }
+      throw err
+    }
+    if (orderValue && Number(coupon.min_order_value || 0) > 0 && orderValue < Number(coupon.min_order_value)) {
+      const err: any = new Error(`Valor mínimo do pedido: R$ ${Number(coupon.min_order_value).toFixed(2)}`)
+      err.response = { data: { error: `Valor mínimo do pedido: R$ ${Number(coupon.min_order_value).toFixed(2)}` } }
+      throw err
+    }
+    const discountType = coupon.discount_type || 'percentage'
+    const discount = discountType === 'percentage'
+      ? (orderValue || 0) * (Number(coupon.discount_value || 0) / 100)
+      : Number(coupon.discount_value || 0)
+    return {
+      valid: true,
+      coupon: { id: coupon.id, code: coupon.code || coupon.coupon_code, title: coupon.title, discountType, discountValue: Number(coupon.discount_value || 0) },
+      discount,
+    }
+  }
   const { data } = await api.post('/coupons/validate', { code, orderValue })
   return data
 }
@@ -757,12 +825,23 @@ export async function getComplementGroups(productId?: string): Promise<Complemen
   const { data } = await api.get(url)
   return data
 }
+export async function getAllComplementGroups(): Promise<Record<string, ComplementGroup[]>> {
+  if (isDesktop) return electronApi.complements.listAllGroups()
+  const { data } = await api.get('/complements/groups')
+  const map: Record<string, ComplementGroup[]> = {}
+  for (const g of data) {
+    if (!map[g.productId]) map[g.productId] = []
+    map[g.productId].push(g)
+  }
+  return map
+}
 export async function createComplementGroup(data: { name: string; type?: string; min?: number; max?: number; productId: string; isRequired?: boolean }) {
   if (isDesktop) return electronApi.complements.createGroup(data)
   const { data: res } = await api.post('/complements/groups', data)
   return res
 }
 export async function updateComplementGroup(id: string, data: { name?: string; type?: string; min?: number; max?: number; isRequired?: boolean }) {
+  if (isDesktop) return electronApi.complements.updateGroup(id, data)
   const { data: res } = await api.put(`/complements/groups/${id}`, data)
   return res
 }
@@ -777,6 +856,7 @@ export async function createComplement(data: { groupId: string; name: string; pr
   return res
 }
 export async function updateComplement(id: string, data: { name?: string; price?: number; maxExtra?: number; isAvailable?: boolean }) {
+  if (isDesktop) return electronApi.complements.updateItem(id, data)
   const { data: res } = await api.put(`/complements/${id}`, data)
   return res
 }
@@ -914,6 +994,17 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return data
 }
 
+// ─── Billing ───
+export async function getSubscription(): Promise<{ plan: string; status: string }> {
+  const { data } = await api.get('/billing/subscription')
+  return data
+}
+
+export async function changePlan(plan: string): Promise<{ message: string }> {
+  const { data } = await api.post('/billing/checkout', { plan })
+  return data
+}
+
 // ─── SaaS Admin ───
 export interface SaaSStats {
   stores: { total: number }
@@ -961,4 +1052,56 @@ export async function fetchCep(cep: string) {
   } catch {
     return null
   }
+}
+
+// Server URL (desktop sync)
+export async function setServerUrl(url: string): Promise<{ success: boolean }> {
+  if (isDesktop) return electronApi.sync.setServerUrl(url)
+  const { data } = await api.post('/settings/server-url', { url })
+  return data
+}
+
+// PDV — Point of Sale
+export interface PdvProductData {
+  categories: Category[]
+  products: Product[]
+  complements: Record<string, ComplementGroup[]>
+}
+export async function pdvGetProducts(): Promise<PdvProductData> {
+  if (isDesktop) {
+    const cats = await electronApi.categories.list()
+    const prods = await electronApi.products.listAll()
+    const groups = await electronApi.complements.listAllGroups()
+    const comps: Record<string, ComplementGroup[]> = {}
+    for (const g of groups) {
+      if (!comps[g.productId]) comps[g.productId] = []
+      comps[g.productId].push(g)
+    }
+    return { categories: cats, products: prods, complements: comps }
+  }
+  const { data } = await api.get('/pdv/products')
+  return data
+}
+export async function pdvSearchCustomers(q: string): Promise<{ id: string; name: string; phone: string }[]> {
+  if (isDesktop) {
+    const all = await electronApi.customers.list()
+    const lower = q.toLowerCase()
+    return (all as any[]).filter(c => c.name?.toLowerCase().includes(lower) || c.phone?.includes(q)).slice(0, 20)
+  }
+  const { data } = await api.get(`/pdv/customers?q=${encodeURIComponent(q)}`)
+  return data
+}
+export async function occupyTable(id: string, customerName?: string, customerPhone?: string): Promise<void> {
+  if (isDesktop) {
+    await electronApi.tables.update(id, { is_occupied: 1, customer_name: customerName, customer_phone: customerPhone })
+    return
+  }
+  await api.patch(`/tables-ext/${id}/occupy`, { customer_name: customerName, customer_phone: customerPhone })
+}
+export async function releaseTable(id: string): Promise<void> {
+  if (isDesktop) {
+    await electronApi.tables.update(id, { is_occupied: 0, customer_name: null, customer_phone: null })
+    return
+  }
+  await api.patch(`/tables-ext/${id}/release`)
 }

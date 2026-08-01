@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getIntegrations, setIntegration, getProducts, getAllProducts, createProduct, updateProduct, createOrder, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getPrinters, createPrinter, deletePrinter, getFiado, createFiado, payFiado, getStoreSettings, getCategories, createCategory, updateCategory, deleteCategory, updateOrderStatus, uploadProductImage, getComplementGroups, createComplementGroup, createComplement, deleteComplement, getCustomerSegmentation } from '../api/client'
+import { getDashboardSummary, getOrders, getTables, createTable, deleteTable, getCoupons, createCoupon, deleteCoupon, getLoyaltyRewards, createLoyaltyReward, deleteLoyaltyReward, getCampaigns, getIntegrations, setIntegration, getAllProducts, createProduct, updateProduct, getCashRegister, addCashEntry, getInventory, upsertInventoryProduct, adjustInventory, getDeliveryRoutes, createDeliveryRoute, updateDeliveryStatus, getFiado, createFiado, payFiado, getStoreSettings, getCategories, updateOrderStatus, uploadProductImage, getComplementGroups, createComplementGroup, createComplement, deleteComplement, getCustomerSegmentation, isDesktop } from '../api/client'
 import { exportToCSV, ordersToCSV } from '../utils/export'
 import React, { useState, useRef, useEffect } from 'react'
 import DashboardSidebar from '../components/DashboardSidebar'
@@ -10,16 +10,6 @@ import ComplementsPanel from '../components/ComplementsPanel'
 import FinancePanel from '../components/FinancePanel'
 import DriversPanel from '../components/DriversPanel'
 import OnboardingChecklist from '../components/OnboardingChecklist'
-import StoresPanel from '../components/StoresPanel'
-import AdvancedInventoryPanel from '../components/AdvancedInventoryPanel'
-import DesempenhoVendas from './DesempenhoVendas'
-import DesempenhoClientes from './DesempenhoClientes'
-import DesempenhoRFV from './DesempenhoRFV'
-import DesempenhoCatalogo from './DesempenhoCatalogo'
-import DesempenhoEntregas from './DesempenhoEntregas'
-import DesempenhoDescontos from './DesempenhoDescontos'
-import DesempenhoCancelamentos from './DesempenhoCancelamentos'
-import DesempenhoVisaoGeral from './DesempenhoVisaoGeral'
 import HistoricoPedidos from './HistoricoPedidos'
 import MinhaEmpresa from './MinhaEmpresa'
 import Avaliacoes from './Avaliacoes'
@@ -35,6 +25,7 @@ import AvisosPanel from './AvisosPanel'
 import OpcoesPanel from './OpcoesPanel'
 import FiltrosAvancadosPanel from './FiltrosAvancadosPanel'
 import CombosPanel from './CombosPanel'
+import PDV from './PDV'
 
 function SalesChart({ data }: { data: { day: string; count: number; revenue: number }[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -198,8 +189,8 @@ export default function Dashboard() {
               <DashboardCard>
                 <h3 className="font-semibold mb-sm" style={{ fontSize: '.9rem' }}>🆕 Atalhos</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <a href="/kds" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">👨‍🍳 Abrir KDS Cozinha</a>
-                  <a href="/cardapio" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">🔗 Ver Cardápio</a>
+                  <Link to="/kds" className="btn btn-outline btn-sm">👨‍🍳 Abrir KDS Cozinha</Link>
+                  <Link to="/cardapio" className="btn btn-outline btn-sm">🔗 Ver Cardápio</Link>
                 </div>
               </DashboardCard>
             </div>
@@ -233,7 +224,9 @@ export default function Dashboard() {
         {tab === 'campaigns' && <CampaignsPanel campaigns={campaigns} />}
         {tab === 'crm' && <CRMPanel segmentation={segmentation} />}
         {tab === 'integrations' && <IntegrationsPanel integrations={integrations} />}
-        {tab === 'financeiro' || tab === 'financeiro-dashboard' || tab === 'financeiro-lancamentos' || tab === 'financeiro-fluxo' ? <FinancePanel /> : null}
+        {tab === 'financeiro-dashboard' && <FinancePanel initialTab="dashboard" />}
+        {tab === 'financeiro-lancamentos' && <FinancePanel initialTab="transactions" />}
+        {tab === 'financeiro-fluxo' && <FinancePanel initialTab="dashboard" />}
         {tab === 'entregadores' && <DriversPanel />}
         {tab === 'produtos' && <ProdutosPanel />}
         {tab === 'complements' && <ComplementsPanel />}
@@ -242,24 +235,21 @@ export default function Dashboard() {
         {tab === 'combos' && <CombosPanel />}
         {tab === 'caixa' && <CaixaPanel />}
         {tab === 'estoque' && <EstoquePanel />}
+        {tab === 'pdv' && <PDV />}
         {tab === 'rotas' && <RotasPanel />}
-        {tab === 'impressoras' || tab === 'config-impressao' ? <ImpressoraConfig /> : null}
+        {tab === 'impressoras' || tab === 'impressoras-vincular' || tab === 'impressoras-setores' || tab === 'impressoras-config' || tab === 'config-impressao' ? <ImpressoraConfig /> : null}
         {tab === 'fiado' || tab === 'fiado-dividas' || tab === 'fiado-visao-geral' ? <FiadoPanel subTab={tab === 'fiado-visao-geral' ? 'visao-geral' : 'dividas'} /> : null}
         {tab === 'avaliacoes' && <Avaliacoes />}
-        {tab === 'kds' && <iframe src="/kds" style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none', borderRadius: 12 }} title="KDS" />}
+        {tab === 'kds' && <iframe src={isDesktop ? '#/kds' : '/kds'} style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none', borderRadius: 12 }} title="KDS" />}
         {tab === 'historico' && <HistoricoPedidos />}
         {tab === 'empresa-perfil' || tab === 'empresa-horarios' || tab === 'empresa-pagamentos' || tab === 'empresa-campos' ? <MinhaEmpresa /> : null}
         {tab === 'empresa-avisos' && <AvisosPanel />}
-        {tab === 'avaliacoes' && <Avaliacoes />}
 
         {tab === 'personalizar-site' && <PersonalizarSite />}
         {tab === 'agendamento' && <AgendamentoPage />}
         {tab === 'areas-entrega' && <AreasEntrega />}
         {tab === 'config-geral' && <ConfigGeral />}
         {tab === 'usuarios' && <UsuariosPage />}
-
-        {tab === 'impressoras-vincular' || tab === 'impressoras-setores' || tab === 'impressoras-config' || tab === 'config-impressao' ? <ImpressoraConfig /> : null}
-        {tab === 'financeiro-lancamentos' || tab === 'financeiro-fluxo' ? <FinancePanel /> : null}
 
       </main>
     </div>
@@ -329,7 +319,7 @@ function OrderCard({ order }: { order: any }) {
         <span className="text-xs text-muted">{order.payment_method} • R$ {order.total.toFixed(2)}</span>
         <div className="flex gap-xs">
           <button className="btn btn-xs btn-ghost" style={{ padding: '2px 6px', fontSize: '.7rem' }}
-            onClick={() => window.open(`/api/orders/${order.id}/receipt`, '_blank')}>
+            onClick={() => window.open(isDesktop ? `#/orders/${order.id}/receipt` : `/api/orders/${order.id}/receipt`, '_blank')}>
             🖨️
           </button>
           <span className="text-xs text-muted">{new Date(order.created_at).toLocaleString('pt-BR')}</span>
@@ -466,46 +456,6 @@ function CampaignsPanel({ campaigns }: any) {
   )
 }
 
-function AbandonedPanel({ carts }: any) {
-  return (
-    <div className="panel-fadeIn">
-      <p className="text-sm text-muted mb-md">🛒 Carrinhos abandonados que podem ser recuperados</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {carts?.map((c: any) => (
-          <div key={c.id} className="dashboard-card" style={{ padding: 14 }}>
-            <p className="font-semibold">{c.customer_name || 'Anônimo'} <span className="text-sm text-muted">• {c.customer_phone || 'sem telefone'}</span></p>
-            <p className="text-xs text-muted">{c.items ? JSON.parse(c.items).length : 0} itens • R$ {c.total ? Number(c.total).toFixed(2) : '0,00'} • {new Date(c.created_at).toLocaleString('pt-BR')}</p>
-          </div>
-        ))}
-        {(!carts || carts.length === 0) && <p className="text-muted text-sm">Nenhum carrinho abandonado</p>}
-      </div>
-    </div>
-  )
-}
-
-function CashbackPanel({ settings }: any) {
-  const queryClient = useQueryClient()
-  const [pct, setPct] = useState(settings?.percentage || 5)
-  const saveMut = useMutation({
-    mutationFn: (v: number) => setCashbackSettings(v),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cashback'] })
-  })
-
-  return (
-    <div className="panel-fadeIn">
-      <div className="dashboard-card" style={{ maxWidth: 400 }}>
-        <h4 className="font-semibold mb-sm">💵 Configuração de Cashback</h4>
-        <p className="text-sm text-muted mb-md">Porcentagem de cashback concedida ao cliente quando o pedido é entregue.</p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="number" className="input" style={{ width: 100 }} value={pct} onChange={e => setPct(Number(e.target.value))} />
-          <span>%</span>
-          <button className="btn btn-primary btn-sm" onClick={() => saveMut.mutate(pct)} disabled={saveMut.isPending}>Salvar</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function CRMPanel({ segmentation }: any) {
   return (
     <div className="panel-fadeIn">
@@ -592,142 +542,6 @@ function IntegrationsPanel({ integrations }: any) {
   )
 }
 
-function PDVPanel() {
-  const queryClient = useQueryClient()
-  const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts })
-  const [cart, setCart] = useState<{ id: string; name: string; price: number; qty: number }[]>([])
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const createMut = useMutation({
-    mutationFn: createOrder,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['orders'] }); setCart([]); setName(''); setPhone('') }
-  })
-
-  const addToCart = (p: any) => {
-    setCart(c => { const ex = c.find(i => i.id === p.id); return ex ? c.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i) : [...c, { id: p.id, name: p.name, price: p.pricePromotional || p.price, qty: 1 }] })
-  }
-
-  return (
-    <div className="panel-fadeIn" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16 }}>
-      <div>
-        <h4 className="font-semibold mb-sm">🍔 Produtos</h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {products?.map((p: any) => (
-            <button key={p.id} className="btn btn-outline btn-sm" onClick={() => addToCart(p)}>
-              {p.name} • R$ {(p.pricePromotional || p.price).toFixed(2)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="dashboard-card" style={{ padding: 14 }}>
-        <h4 className="font-semibold mb-sm">🛒 Carrinho</h4>
-        {cart.map(i => <p key={i.id} className="text-sm">{i.qty}x {i.name} = R$ {(i.price * i.qty).toFixed(2)}</p>)}
-        <p className="font-bold mt-sm">Total: R$ {cart.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2)}</p>
-        <div className="divider" />
-        <input className="input mb-xs" placeholder="Cliente" value={name} onChange={e => setName(e.target.value)} />
-        <input className="input mb-sm" placeholder="Telefone" value={phone} onChange={e => setPhone(e.target.value)} />
-        <button className="btn btn-primary btn-block btn-sm" disabled={createMut.isPending || cart.length === 0}
-          onClick={() => createMut.mutate({ customerName: name, customerPhone: phone || '00000000000', items: cart.map(i => ({ productId: i.id, productName: i.name, quantity: i.qty, unitPrice: i.price, totalPrice: i.price * i.qty })), paymentMethod: 'cash', deliveryType: 'pickup' })}>
-          Finalizar Pedido
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function CategoriasPanel() {
-  const queryClient = useQueryClient()
-  const { data: cats, isLoading } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', icon: '📁' })
-  const [editing, setEditing] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', icon: '📁', isActive: true })
-  const [dragId, setDragId] = useState<string | null>(null)
-  const createMut = useMutation({
-    mutationFn: createCategory,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setShowForm(false); setForm({ name: '', icon: '📁' }) }
-  })
-  const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => updateCategory(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setEditing(null) }
-  })
-  const deleteMut = useMutation({
-    mutationFn: deleteCategory,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] })
-  })
-  const sorted = [...(cats || [])].sort((a: any, b: any) => a.order - b.order)
-
-  const handleDragStart = (id: string) => { setDragId(id) }
-
-  const handleDrop = (targetId: string) => {
-    if (!dragId || dragId === targetId) { setDragId(null); return }
-    const ids = sorted.map(c => c.id)
-    const fromIdx = ids.indexOf(dragId)
-    const toIdx = ids.indexOf(targetId)
-    if (fromIdx === -1 || toIdx === -1) { setDragId(null); return }
-    ids.splice(fromIdx, 1)
-    ids.splice(toIdx, 0, dragId)
-    ids.forEach((id, i) => { if (id !== sorted[i]?.id) updateMut.mutate({ id, data: { order: i + 1 } }) })
-    setDragId(null)
-  }
-
-  return (
-    <div className="panel-fadeIn">
-      <div className="flex justify-between items-center mb-md">
-        <p className="text-sm text-muted">📂 Arraste as categorias para reordenar</p>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Fechar' : '+ Nova Categoria'}
-        </button>
-      </div>
-      {showForm && (
-        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <input className="input" style={inputStyle} placeholder="Nome *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-          <input className="input" style={{ ...inputStyle, width: 60 }} placeholder="Ícone" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} />
-          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Adicionar</button>
-        </form>
-      )}
-      {isLoading ? <p>Carregando...</p> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {sorted.map((c: any) => (
-            <div key={c.id}
-              draggable
-              onDragStart={() => handleDragStart(c.id)}
-              onDragOver={e => e.preventDefault()}
-              onDrop={() => handleDrop(c.id)}
-              className="dashboard-card"
-              style={{ padding: 14, cursor: 'grab', opacity: dragId === c.id ? .5 : 1, borderLeft: dragId === c.id ? '3px solid var(--primary)' : '3px solid transparent' }}
-            >
-              {editing === c.id ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  <input className="input" style={inputStyle} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                  <input className="input" style={{ ...inputStyle, width: 60 }} value={editForm.icon} onChange={e => setEditForm(f => ({ ...f, icon: e.target.value }))} />
-                  <label style={{ fontSize: '.8rem' }}><input type="checkbox" checked={editForm.isActive} onChange={e => setEditForm(f => ({ ...f, isActive: e.target.checked }))} /> Ativa</label>
-                  <button className="btn btn-primary btn-sm" onClick={() => updateMut.mutate({ id: c.id, data: { name: editForm.name, icon: editForm.icon, isActive: editForm.isActive } })}>Salvar</button>
-                  <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancelar</button>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-sm">
-                    <span style={{ fontSize: '1.2rem', opacity: .4, cursor: 'grab' }}>⠿</span>
-                    <span style={{ fontSize: '1.4rem' }}>{c.icon}</span>
-                    <div>
-                      <span className="font-semibold">{c.name}</span>
-                      {!c.isActive && <span className="badge badge-danger ml-sm">Inativa</span>}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-outline btn-sm" onClick={() => { setEditing(c.id); setEditForm({ name: c.name, icon: c.icon, isActive: c.isActive }) }}>✏️</button>
-                    <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => { if (confirm('Excluir categoria?')) deleteMut.mutate(c.id) }}>🗑️</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function ProdutosPanel() {
   const queryClient = useQueryClient()
@@ -735,7 +549,7 @@ function ProdutosPanel() {
   const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
   const { data: allCompGroups } = useQuery({ queryKey: ['allCompGroups'], queryFn: () => getComplementGroups() })
   const [showNew, setShowNew] = useState(false)
-  const [newForm, setNewForm] = useState({ name: '', price: '', description: '', pricePromotional: '', image: '', categoryId: '', ingredients: '', isHighlighted: false })
+  const [newForm, setNewForm] = useState({ name: '', price: '', description: '', pricePromotional: '', image: '', barcode: '', categoryId: '', ingredients: '', isHighlighted: false })
   const [newExtras, setNewExtras] = useState<{ name: string; price: number }[]>([])
   const [newExtraName, setNewExtraName] = useState('')
   const [newExtraPrice, setNewExtraPrice] = useState('')
@@ -745,7 +559,7 @@ function ProdutosPanel() {
   const newFileRef = useRef<HTMLInputElement>(null)
 
   const [editing, setEditing] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', price: 0, pricePromotional: '' as string | number, image: '', ingredients: '', isHighlighted: false, isAvailable: true })
+  const [editForm, setEditForm] = useState({ name: '', price: 0, pricePromotional: '' as string | number, image: '', barcode: '', ingredients: '', isHighlighted: false, isAvailable: true })
   const [editImagePreview, setEditImagePreview] = useState('')
   const [uploadingEdit, setUploadingEdit] = useState(false)
   const editFileRef = useRef<HTMLInputElement>(null)
@@ -766,7 +580,7 @@ function ProdutosPanel() {
       queryClient.invalidateQueries({ queryKey: ['allProducts'] })
       queryClient.invalidateQueries({ queryKey: ['allCompGroups'] })
       setShowNew(false)
-      setNewForm({ name: '', price: '', description: '', pricePromotional: '', image: '', categoryId: '', ingredients: '', isHighlighted: false })
+      setNewForm({ name: '', price: '', description: '', pricePromotional: '', image: '', barcode: '', categoryId: '', ingredients: '', isHighlighted: false })
       setNewExtras([])
       setNewImagePreview('')
     }
@@ -789,7 +603,7 @@ function ProdutosPanel() {
 
   const startEdit = (p: any) => {
     setEditing(p.id)
-    setEditForm({ name: p.name, price: p.price, pricePromotional: p.pricePromotional || '', image: p.image, ingredients: (p.ingredients || []).join(', '), isHighlighted: p.isHighlighted, isAvailable: p.isAvailable })
+    setEditForm({ name: p.name, price: p.price, pricePromotional: p.pricePromotional || '', image: p.image, barcode: p.barcode || '', ingredients: (p.ingredients || []).join(', '), isHighlighted: p.isHighlighted, isAvailable: p.isAvailable })
     setEditImagePreview(p.image || '')
     const productGroups = allCompGroups?.filter((g: any) => g.productId === p.id) || []
     setEditExtras(productGroups.map((g: any) => ({ groupId: g.id, groupName: g.name, items: g.items || [] })))
@@ -884,11 +698,12 @@ function ProdutosPanel() {
 
       {showNew && (
         <div style={{ marginBottom: 16, padding: 16, background: 'var(--bg)', borderRadius: 10 }}>
-          <form onSubmit={e => { e.preventDefault(); if (newForm.name && newForm.price) createMut.mutate({ name: newForm.name, price: Number(newForm.price), description: newForm.description, pricePromotional: newForm.pricePromotional ? Number(newForm.pricePromotional) : undefined, image: newForm.image, categoryId: newForm.categoryId || undefined, isHighlighted: newForm.isHighlighted, ingredients: newForm.ingredients.split(',').map((s: string) => s.trim()) }) }}
+          <form onSubmit={e => { e.preventDefault(); if (newForm.name && newForm.price) createMut.mutate({ name: newForm.name, price: Number(newForm.price), description: newForm.description, pricePromotional: newForm.pricePromotional ? Number(newForm.pricePromotional) : undefined, image: newForm.image, barcode: newForm.barcode, categoryId: newForm.categoryId || undefined, isHighlighted: newForm.isHighlighted, ingredients: newForm.ingredients.split(',').map((s: string) => s.trim()) }) }}
             style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             <input className="input" style={inputStyle} placeholder="Nome *" value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))} required />
             <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço *" value={newForm.price} onChange={e => setNewForm(f => ({ ...f, price: e.target.value }))} required />
             <input className="input" style={{ ...inputStyle, width: 90 }} type="number" step=".1" placeholder="Preço Promo" value={newForm.pricePromotional} onChange={e => setNewForm(f => ({ ...f, pricePromotional: e.target.value }))} />
+            <input className="input" style={{ ...inputStyle, width: 140 }} placeholder="Código de barras (EAN)" value={newForm.barcode} onChange={e => setNewForm(f => ({ ...f, barcode: e.target.value }))} />
             <input className="input" style={inputStyle} placeholder="Descrição" value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} />
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div>
@@ -975,6 +790,7 @@ function ProdutosPanel() {
                       <div style={{ display: 'flex', gap: 6 }}>
                         <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: Number(e.target.value) }))} placeholder="Preço" />
                         <input style={{ ...inputStyle, width: 80 }} type="number" step=".1" placeholder="Promo" value={editForm.pricePromotional} onChange={e => setEditForm(f => ({ ...f, pricePromotional: e.target.value }))} />
+                        <input style={{ ...inputStyle, width: 140 }} value={editForm.barcode} onChange={e => setEditForm(f => ({ ...f, barcode: e.target.value }))} placeholder="Código de barras" />
                       </div>
                       <input style={{ ...inputStyle, width: '100%' }} value={editForm.ingredients} onChange={e => setEditForm(f => ({ ...f, ingredients: e.target.value }))} placeholder="Ingredientes (vírgula)" />
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1056,11 +872,43 @@ function CaixaPanel() {
 
   const entries = data?.entries || []
   const total = entries.reduce((s: number, e: any) => s + (e.type === 'income' ? Number(e.amount) : -Number(e.amount)), 0)
+  const todayIncome = data?.todayIn || 0
+  const todayExpense = data?.todayOut || 0
+  const todayOrders = data?.todayOrders || 0
 
   return (
     <div className="panel-fadeIn">
+      {/* Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <div className="dashboard-card" style={{ padding: 14, textAlign: 'center' }}>
+          <div style={{ fontSize: '.75rem', color: 'var(--text-light)', marginBottom: 4 }}>Saldo Total</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, color: total >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+            R$ {total.toFixed(2)}
+          </div>
+        </div>
+        <div className="dashboard-card" style={{ padding: 14, textAlign: 'center', background: '#e8f5e9' }}>
+          <div style={{ fontSize: '.75rem', color: '#555', marginBottom: 4 }}>Entradas Hoje</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--success)' }}>
+            R$ {todayIncome.toFixed(2)}
+          </div>
+        </div>
+        <div className="dashboard-card" style={{ padding: 14, textAlign: 'center', background: '#fef5f5' }}>
+          <div style={{ fontSize: '.75rem', color: '#555', marginBottom: 4 }}>Saídas Hoje</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--danger)' }}>
+            R$ {todayExpense.toFixed(2)}
+          </div>
+        </div>
+        <div className="dashboard-card" style={{ padding: 14, textAlign: 'center', background: '#e3f2fd' }}>
+          <div style={{ fontSize: '.75rem', color: '#555', marginBottom: 4 }}>Pedidos Hoje</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#1565c0' }}>
+            {todayOrders}
+          </div>
+        </div>
+      </div>
+
+      {/* Balance + New Entry button */}
       <div className="flex justify-between items-center mb-md">
-        <p className="font-semibold">💰 Saldo: <span style={{ color: total >= 0 ? 'var(--success)' : 'var(--danger)' }}>R$ {total.toFixed(2)}</span></p>
+        <p className="font-semibold">📋 Movimentações</p>
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Nova Movimentação'}</button>
       </div>
       {showForm && (
@@ -1080,7 +928,11 @@ function CaixaPanel() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {entries.map((e: any) => (
           <div key={e.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', padding: 10, fontSize: '.85rem' }}>
-            <span>{e.description} <span className="text-muted text-xs">• {e.payment_method || e.paymentMethod} • {new Date(e.created_at).toLocaleString('pt-BR')}</span></span>
+            <span>
+              {e.description}
+              {e.order_id && <span className="badge badge-primary" style={{ marginLeft: 6, fontSize: '.65rem', padding: '1px 6px', background: '#3498db', color: '#fff', borderRadius: 4 }}>PDV</span>}
+              <span className="text-muted text-xs" style={{ marginLeft: 6 }}>• {e.payment_method || e.paymentMethod} • {new Date(e.created_at).toLocaleString('pt-BR')}</span>
+            </span>
             <span style={{ color: e.type === 'income' ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
               {e.type === 'income' ? '+' : '-'} R$ {Number(e.amount).toFixed(2)}
             </span>
@@ -1148,52 +1000,6 @@ function EstoquePanel() {
   )
 }
 
-function NotasPanel() {
-  const queryClient = useQueryClient()
-  const { data: invoices } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
-  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: getOrders })
-  const [orderId, setOrderId] = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const issueMut = useMutation({
-    mutationFn: issueInvoice,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['invoices'] }); setOrderId(''); setShowForm(false) }
-  })
-
-  const deliveryOrders = (orders || []).filter((o: any) => o.delivery_type !== 'mesa')
-
-  return (
-    <div className="panel-fadeIn">
-      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Nova NF-e'}</button>
-      {showForm && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <select style={{ flex: 1, ...inputStyle }} value={orderId} onChange={e => setOrderId(e.target.value)}>
-            <option value="">Selecione um pedido...</option>
-            {deliveryOrders.map((o: any) => (
-              <option key={o.id} value={o.id}>#{o.id.slice(0, 8)} - {o.customer_name} - R$ {o.total.toFixed(2)}</option>
-            ))}
-          </select>
-          <button className="btn btn-primary btn-sm" onClick={() => orderId && issueMut.mutate(orderId)} disabled={!orderId || issueMut.isPending}>Emitir NF-e</button>
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {(invoices || []).map((inv: any) => (
-          <div key={inv.id} className="dashboard-card" style={{ padding: 14 }}>
-            <div className="flex justify-between">
-              <div>
-                <span className="font-semibold">NF-e #{inv.number || inv.id.slice(0, 8)}</span>
-                <span className={`badge ml-sm ${inv.status === 'issued' ? 'badge-success' : 'badge-warning'}`}>{inv.status}</span>
-              </div>
-              <span className="font-bold">R$ {Number(inv.total).toFixed(2)}</span>
-            </div>
-            <p className="text-xs text-muted">{new Date(inv.created_at).toLocaleString('pt-BR')}</p>
-          </div>
-        ))}
-        {(!invoices || invoices.length === 0) && <p className="text-muted text-sm">Nenhuma nota fiscal</p>}
-      </div>
-    </div>
-  )
-}
-
 function RotasPanel() {
   const queryClient = useQueryClient()
   const { data: routes } = useQuery({ queryKey: ['routes'], queryFn: getDeliveryRoutes })
@@ -1245,47 +1051,6 @@ function RotasPanel() {
   )
 }
 
-function ImpressorasPanel() {
-  const queryClient = useQueryClient()
-  const { data: printers } = useQuery({ queryKey: ['printers'], queryFn: getPrinters })
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', sector: 'cozinha' })
-  const createMut = useMutation({
-    mutationFn: createPrinter,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['printers'] }); setShowForm(false); setForm({ name: '', sector: 'cozinha' }) }
-  })
-  const deleteMut = useMutation({ mutationFn: deletePrinter, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['printers'] }) })
-
-  return (
-    <div className="panel-fadeIn">
-      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Nova Impressora'}</button>
-      {showForm && (
-        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          <input style={inputStyle} placeholder="Nome *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-          <select style={inputStyle} value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}>
-            <option value="cozinha">Cozinha</option><option value="balcao">Balcão</option><option value="caixa">Caixa</option>
-          </select>
-          <button type="submit" className="btn btn-primary btn-sm" disabled={createMut.isPending}>Adicionar</button>
-        </form>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {printers?.map((p: any) => (
-          <div key={p.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
-            <div>
-              <span className="font-semibold">🖨️ {p.name}</span>
-              <span className="text-sm text-muted ml-sm">{p.sector} • {p.isActive ? 'Ativa' : 'Inativa'}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => fetch(`/api/printers/test/${p.id}`, { method: 'POST' }).then(r => r.text()).then(msg => alert(msg || 'Impressão de teste enviada!'))}>🖨️ Testar</button>
-              <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteMut.mutate(p.id)}>🗑️</button>
-            </div>
-          </div>
-        ))}
-        {(!printers || printers.length === 0) && <p className="text-muted text-sm">Nenhuma impressora cadastrada</p>}
-      </div>
-    </div>
-  )
-}
 
 function FiadoPanel({ subTab = 'dividas' }: { subTab?: string }) {
   const queryClient = useQueryClient()
@@ -1375,78 +1140,7 @@ function FiadoPanel({ subTab = 'dividas' }: { subTab?: string }) {
   )
 }
 
-function BlogPanel({ posts }: any) {
-  const queryClient = useQueryClient()
-  const [form, setForm] = useState({ title: '', content: '', slug: '', published: false })
-  const [showForm, setShowForm] = useState(false)
-  const createMut = useMutation({
-    mutationFn: createBlogPost,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['blogPosts'] }); setShowForm(false); setForm({ title: '', content: '', slug: '', published: false }) }
-  })
-  const deleteMut = useMutation({ mutationFn: deleteBlogPost, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['blogPosts'] }) })
 
-  return (
-    <div className="panel-fadeIn">
-      <button className="btn btn-primary btn-sm mb-md" onClick={() => setShowForm(!showForm)}>{showForm ? 'Fechar' : '+ Novo Post'}</button>
-      {showForm && (
-        <form onSubmit={e => { e.preventDefault(); createMut.mutate(form) }} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <input style={inputStyle} placeholder="Título *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
-          <input style={inputStyle} placeholder="Slug (url)" value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} />
-          <textarea style={{ ...inputStyle, minHeight: 100 }} placeholder="Conteúdo do post..." value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
-          <label style={{ fontSize: '.85rem' }}><input type="checkbox" checked={form.published} onChange={e => setForm(f => ({ ...f, published: e.target.checked }))} /> Publicar</label>
-          <button type="submit" className="btn btn-primary btn-sm">Salvar</button>
-        </form>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {posts?.map((p: any) => (
-          <div key={p.id} className="dashboard-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14 }}>
-            <div>
-              <span className="font-semibold">{p.title}</span>
-              <span className={`badge ml-sm ${p.is_published ? 'badge-success' : 'badge-warning'}`}>{p.is_published ? 'Publicado' : 'Rascunho'}</span>
-            </div>
-            <button className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteMut.mutate(p.id)}>🗑️</button>
-          </div>
-        ))}
-        {(!posts || posts.length === 0) && <p className="text-muted text-sm">Nenhum post</p>}
-      </div>
-    </div>
-  )
-}
-
-function LeadsPanel({ leads }: any) {
-  return (
-    <div className="panel-fadeIn">
-      <p className="text-sm text-muted mb-md">📋 Leads capturados no formulário de contato</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {leads?.map((l: any) => (
-          <div key={l.id} className="dashboard-card" style={{ padding: 14 }}>
-            <p className="font-semibold">{l.name}</p>
-            <p className="text-xs text-muted">{l.email} • {l.phone} • {l.company} • {new Date(l.created_at).toLocaleString('pt-BR')}</p>
-            {l.notes && <p className="text-xs text-muted">{l.notes}</p>}
-          </div>
-        ))}
-        {(!leads || leads.length === 0) && <p className="text-muted text-sm">Nenhum lead</p>}
-      </div>
-    </div>
-  )
-}
-
-function PartnersPanel({ partners }: any) {
-  return (
-    <div className="panel-fadeIn">
-      <p className="text-sm text-muted mb-md">🤝 Parceiros cadastrados</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {partners?.map((p: any) => (
-          <div key={p.id} className="dashboard-card" style={{ padding: 14 }}>
-            <p className="font-semibold">{p.name}</p>
-            <p className="text-xs text-muted">{p.email} • {p.phone} • {p.company} • {new Date(p.created_at).toLocaleString('pt-BR')}</p>
-          </div>
-        ))}
-        {(!partners || partners.length === 0) && <p className="text-muted text-sm">Nenhum parceiro</p>}
-      </div>
-    </div>
-  )
-}
 
 
 const inputStyle: React.CSSProperties = {
