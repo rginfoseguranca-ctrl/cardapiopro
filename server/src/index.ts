@@ -40,11 +40,13 @@ import driversRouter from './routes/drivers'
 import storesRouter from './routes/stores'
 import suppliesRouter from './routes/supplies'
 import deliveryAreasRouter from './routes/delivery-areas'
+import pdvRouter from './routes/pdv'
+import tablesExtRouter from './routes/tables-ext'
 import paymentWebhooksRouter from './routes/payment-webhooks'
 import viacepRouter from './routes/viacep'
 import billingRouter from './routes/billing'
 import saasAdminRouter from './routes/saas-admin'
-import { errorHandler, authMiddleware, adminMiddleware } from './middleware'
+import { errorHandler, authMiddleware, adminMiddleware, resolveStoreScope, idempotencyMiddleware } from './middleware'
 import { requireFeature } from './middleware/plan-gate'
 import { notifyAll } from './routes/notifications'
 import { setupSwagger } from './swagger'
@@ -212,6 +214,8 @@ async function main() {
   app.use('/api/drivers', authMiddleware, requireFeature('delivery'), driversRouter)
   app.use('/api/delivery-areas', authMiddleware, deliveryAreasRouter)
   app.use('/api/supplies', authMiddleware, requireFeature('inventory'), suppliesRouter)
+  app.use('/api/pdv', authMiddleware, pdvRouter)
+  app.use('/api/tables-ext', authMiddleware, tablesExtRouter)
 
   // 404 for API routes
   app.use('/api/*', (_req, res) => {

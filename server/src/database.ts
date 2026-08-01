@@ -379,6 +379,9 @@ function initTables() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  try { db.run('ALTER TABLE tables ADD COLUMN is_occupied INTEGER DEFAULT 0') } catch {}
+  try { db.run('ALTER TABLE tables ADD COLUMN customer_name TEXT') } catch {}
+  try { db.run('ALTER TABLE tables ADD COLUMN customer_phone TEXT') } catch {}
   db.run(`
     CREATE TABLE IF NOT EXISTS complement_groups (
       id TEXT PRIMARY KEY,
@@ -491,6 +494,7 @@ function initTables() {
   addColumnIfMissing('products', 'cest', "TEXT DEFAULT ''")
   addColumnIfMissing('products', 'cst', "TEXT DEFAULT '06000'")
   addColumnIfMissing('products', 'cfop', "TEXT DEFAULT '5102'")
+  addColumnIfMissing('products', 'barcode', "TEXT DEFAULT ''")
   addColumnIfMissing('invoices', 'total', 'REAL DEFAULT 0')
   db.run(`
     CREATE TABLE IF NOT EXISTS supplies (
