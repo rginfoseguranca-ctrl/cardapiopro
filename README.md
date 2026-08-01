@@ -161,11 +161,14 @@ cardapiopro/
 │       ├── pages/    # 24 páginas
 │       ├── components/ # 23 componentes
 │       └── hooks/    # Zustand stores
-├── mobile/           # App React Native
+├── mobile/           # App React Native (projeto separado)
 │   └── src/
 │       ├── screens/  # 6 telas
 │       └── components/
-├── shared/           # Tipos compartilhados
+├── desktop/          # App Electron (desktop)
+│   └── src/
+│       ├── main/     # Banco local, sync, IPC
+│       └── preload/
 ├── docker-compose.yml
 ├── Dockerfile
 └── .env.example
