@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express'
-import { dbGet, dbRun } from '../database'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
@@ -7,6 +6,12 @@ import { v4 as uuid } from 'uuid'
 import { JWT_SECRET } from '../middleware'
 import { createChildLogger } from '../logger'
 import { PLANS } from './billing'
+import {
+  findUserByEmail, findUserByEmailInStore, findUserById, insertUser, updateUser,
+  findSubscriptionByStore, countUsersInStore,
+  findUnusedPasswordReset, createPasswordReset, markPasswordResetUsed, createSubscription,
+} from '../repositories/global'
+import { storesRepository, companySettingsRepository } from '../repositories/fixtures'
 
 const log = createChildLogger('auth')
 const router = Router()
@@ -22,7 +27,7 @@ router.post('/register', async (req: Request, res: Response) => {
     return
   }
 
-  const existingUser = dbGet('SELECT id FROM users WHERE email = ?', [email])
+  const existingUser = findUserByEmail(email)
   if (existingUser) {
     res.status(409).json({ error: 'Email já cadastrado' })
     return
@@ -33,24 +38,22 @@ router.post('/register', async (req: Request, res: Response) => {
   const slug = storeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36)
   const hash = await bcrypt.hash(password, 10)
 
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [storeId, storeName, slug])
-  dbRun('INSERT INTO company_settings (id, store_name) VALUES (?, ?)', [storeId, storeName])
-  dbRun('INSERT INTO users (id, name, email, password, role, store_id) VALUES (?, ?, ?, ?, ?, ?)',
-    [userId, name, email, hash, 'admin', storeId])
+  storesRepository.insert(null, { id: storeId, name: storeName, slug })
+  companySettingsRepository.insert(null, { id: storeId, store_name: storeName })
+  insertUser({ id: userId, name, email, password: hash, role: 'owner', store_id: storeId })
 
   const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
-  dbRun('INSERT INTO subscriptions (id, store_id, plan, status, trial_ends_at) VALUES (?, ?, ?, ?, ?)',
-    ['sub_' + uuid(), storeId, 'premium', 'trialing', trialEndsAt])
+  createSubscription(storeId, 'premium', 'trialing', trialEndsAt)
 
   const token = jwt.sign(
-    { id: userId, email, role: 'admin', storeId },
+    { id: userId, email, role: 'owner', storeId },
     JWT_SECRET,
     { expiresIn: '7d' }
   )
 
   res.status(201).json({
     token,
-    user: { id: userId, name, email, role: 'admin' },
+    user: { id: userId, name, email, role: 'owner' },
     store: { id: storeId, name: storeName, slug },
   })
 })
@@ -62,7 +65,7 @@ router.post('/login', async (req: Request, res: Response) => {
     return
   }
 
-  const user = dbGet('SELECT * FROM users WHERE email = ?', [email])
+  const user = findUserByEmail(email)
   if (!user) {
     res.status(401).json({ error: 'Credenciais inválidas' })
     return
@@ -77,7 +80,7 @@ router.post('/login', async (req: Request, res: Response) => {
     valid = hash === user.password
     if (valid) {
       const newHash = await bcrypt.hash(password, 10)
-      dbRun('UPDATE users SET password = ? WHERE id = ?', [newHash, user.id])
+      updateUser(user.id, { password: newHash })
     }
   }
 
@@ -109,7 +112,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     return
   }
 
-  const user = dbGet('SELECT id FROM users WHERE email = ?', [email])
+  const user = findUserByEmail(email)
   if (!user) {
     res.json({ message: 'Se o email estiver cadastrado, você receberá um link de recuperação.' })
     return
@@ -118,8 +121,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
   const token = crypto.randomBytes(32).toString('hex')
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
 
-  dbRun('INSERT INTO password_resets (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)',
-    [uuid(), user.id, token, expiresAt])
+  createPasswordReset(user.id, token, expiresAt)
 
   log.info({ email }, 'Link de redefinição de senha gerado')
 
@@ -137,7 +139,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     return
   }
 
-  const reset = dbGet('SELECT * FROM password_resets WHERE token = ? AND used = 0', [token])
+  const reset = findUnusedPasswordReset(token)
   if (!reset) {
     res.status(400).json({ error: 'Token inválido ou já utilizado' })
     return
@@ -149,8 +151,8 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   }
 
   const hash = await bcrypt.hash(newPassword, 10)
-  dbRun('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?', [hash, reset.user_id])
-  dbRun('UPDATE password_resets SET used = 1 WHERE id = ?', [reset.id])
+  updateUser(reset.user_id, { password: hash, must_change_password: 0 })
+  markPasswordResetUsed(reset.id)
 
   res.json({ message: 'Senha redefinida com sucesso' })
 })
@@ -172,7 +174,7 @@ router.post('/change-password', async (req: Request, res: Response) => {
       return
     }
 
-    const user = dbGet('SELECT * FROM users WHERE id = ?', [decoded.id])
+    const user = findUserById(decoded.id)
     if (!user) { res.status(404).json({ error: 'Usuário não encontrado' }); return }
 
     let valid = false
@@ -188,7 +190,7 @@ router.post('/change-password', async (req: Request, res: Response) => {
     }
 
     const newHash = await bcrypt.hash(newPassword, 10)
-    dbRun('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?', [newHash, user.id])
+    updateUser(user.id, { password: newHash, must_change_password: 0 })
     res.json({ success: true, message: 'Senha alterada com sucesso' })
   } catch {
     res.status(401).json({ error: 'Token inválido' })
@@ -201,7 +203,7 @@ router.get('/me', (req: Request, res: Response) => {
 
   try {
     const decoded = jwt.verify(auth.replace('Bearer ', ''), JWT_SECRET) as any
-    const user = dbGet('SELECT id, name, email, role, store_id, created_at, must_change_password FROM users WHERE id = ?', [decoded.id])
+    const user = findUserById(decoded.id)
     if (!user) { res.status(404).json({ error: 'Usuário não encontrado' }); return }
     res.json({
       id: user.id,
@@ -223,7 +225,7 @@ router.post('/invite', async (req: Request, res: Response) => {
 
   try {
     const decoded = jwt.verify(auth.replace('Bearer ', ''), JWT_SECRET) as any
-    if (decoded.role !== 'admin') {
+    if (decoded.role !== 'owner' && decoded.role !== 'admin') {
       res.status(403).json({ error: 'Apenas administradores podem convidar membros' })
       return
     }
@@ -234,17 +236,17 @@ router.post('/invite', async (req: Request, res: Response) => {
       return
     }
 
-    const existing = dbGet('SELECT id FROM users WHERE email = ? AND store_id = ?', [email, decoded.storeId])
+    const existing = findUserByEmailInStore(email, decoded.storeId)
     if (existing) {
       res.status(409).json({ error: 'Email já cadastrado nesta loja' })
       return
     }
 
-    const sub = dbGet('SELECT plan FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [decoded.storeId])
+    const sub = findSubscriptionByStore(decoded.storeId)
     const plan = PLANS[sub?.plan || 'start'] || PLANS.start
     if (plan.maxUsers > 0) {
-      const userCount = dbGet('SELECT COUNT(*) as c FROM users WHERE store_id = ?', [decoded.storeId])
-      if (userCount?.c >= plan.maxUsers) {
+      const userCount = countUsersInStore(decoded.storeId)
+      if (userCount >= plan.maxUsers) {
         res.status(403).json({ error: `Limite de ${plan.maxUsers} usuários atingido. Atualize seu plano.`, limitType: 'users' })
         return
       }
@@ -254,8 +256,7 @@ router.post('/invite', async (req: Request, res: Response) => {
     const hash = await bcrypt.hash(tempPassword, 10)
     const userId = uuid()
 
-    dbRun('INSERT INTO users (id, name, email, password, role, store_id, must_change_password) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [userId, name, email, hash, role || 'staff', decoded.storeId, 1])
+    insertUser({ id: userId, name, email, password: hash, role: role || 'staff', store_id: decoded.storeId, must_change_password: 1 })
 
     log.info({ email, storeId: decoded.storeId }, 'Convite enviado para novo membro')
 

@@ -47,6 +47,38 @@ describe('Orders business logic', () => {
     expect(discount).toBe(15)
   })
 
+  it('combines manual discount with coupon discount (capped at subtotal)', () => {
+    const subtotal = 100
+    const manualDiscount = 10
+    const couponDiscount = 20
+    const discount = Math.min((Number(manualDiscount) || 0) + (Number(couponDiscount) || 0), subtotal)
+    expect(discount).toBe(30)
+  })
+
+  it('caps combined discount at subtotal', () => {
+    const subtotal = 40
+    const manualDiscount = 30
+    const couponDiscount = 25
+    const discount = Math.min((Number(manualDiscount) || 0) + (Number(couponDiscount) || 0), subtotal)
+    expect(discount).toBe(40)
+  })
+
+  it('is NaN-safe when discount values are missing', () => {
+    const subtotal = 50
+    const manualDiscount = undefined
+    const couponDiscount = undefined
+    const discount = Math.min((Number(manualDiscount) || 0) + (Number(couponDiscount) || 0), subtotal)
+    expect(discount).toBe(0)
+  })
+
+  it('applies only manual discount when coupon is absent', () => {
+    const subtotal = 50
+    const manualDiscount = 5
+    const couponDiscount = undefined
+    const discount = Math.min((Number(manualDiscount) || 0) + (Number(couponDiscount) || 0), subtotal)
+    expect(discount).toBe(5)
+  })
+
   it('validates delivery address for delivery orders', () => {
     const order = { deliveryType: 'delivery', deliveryAddress: '' }
     const isValid = order.deliveryType !== 'delivery' || !!order.deliveryAddress

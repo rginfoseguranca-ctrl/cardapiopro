@@ -17,10 +17,10 @@ describe('Database', () => {
     expect(products.length).toBeGreaterThanOrEqual(30)
   })
 
-  it('has admin user', () => {
-    const user = dbGet('SELECT * FROM users WHERE email = ?', ['admin@index.local'])
+  it('has super admin user', () => {
+    const user = dbGet('SELECT * FROM users WHERE email = ?', ['admin@local'])
     expect(user).not.toBeNull()
-    expect(user.role).toBe('admin')
+    expect(user.role).toBe('super_admin')
   })
 
   it('has company settings', () => {
@@ -45,6 +45,19 @@ describe('Database', () => {
     expect(order.customer_name).toBe('Test User')
     expect(order.total).toBe(10)
     dbRun('DELETE FROM orders WHERE id = ?', [id])
+  })
+
+  it('has barcode column in products', () => {
+    const col = dbAll('PRAGMA table_info(products)').find((c: any) => c.name === 'barcode')
+    expect(col).toBeTruthy()
+    const id = 'test_barcode_' + Date.now()
+    dbRun(
+      'INSERT INTO products (id, name, price, category_id, barcode) VALUES (?, ?, ?, ?, ?)',
+      [id, 'Produto Teste', 9.9, (dbGet('SELECT id FROM categories LIMIT 1') as any).id, '7891234567890']
+    )
+    const prod = dbGet('SELECT * FROM products WHERE id = ?', [id])
+    expect(prod.barcode).toBe('7891234567890')
+    dbRun('DELETE FROM products WHERE id = ?', [id])
   })
 
   it('can insert and read customers', () => {
