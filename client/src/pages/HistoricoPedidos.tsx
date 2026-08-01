@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { getOrders, type Order } from '../api/client'
@@ -110,9 +110,8 @@ export default function HistoricoPedidos() {
               </thead>
               <tbody>
                 {filtered.map((order: Order) => (
-                  <>
+                  <React.Fragment key={order.id}>
                     <tr
-                      key={order.id}
                       onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
                       style={{ cursor: 'pointer', borderBottom: '1px solid #f0f0f0', transition: 'background .15s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
@@ -181,7 +180,7 @@ export default function HistoricoPedidos() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

@@ -140,7 +140,7 @@ export default function KDS() {
     <div className="container" style={{ padding: '16px 0' }}>
       <div className="flex justify-between items-center mb-sm">
         <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>👨‍🍳 KDS - Cozinha</h2>
-        <button className="btn btn-sm btn-outline" onClick={() => navigate('/admin')}>Painel</button>
+        <button className="btn btn-sm btn-outline" onClick={() => navigate('/dashboard')}>Painel</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>

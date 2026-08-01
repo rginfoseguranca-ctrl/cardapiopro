@@ -47,7 +47,7 @@ export default function PersonalizarSite() {
   }
 
   const handleSave = () => {
-    updateMut.mutate({ primaryColor, schedulingEnabled: showScheduling, logoUrl: logoPreview })
+    updateMut.mutate({ primaryColor, schedulingEnabled: showScheduling, logoUrl: logoPreview } as any)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

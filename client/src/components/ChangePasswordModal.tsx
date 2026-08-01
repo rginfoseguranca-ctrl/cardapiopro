@@ -20,8 +20,8 @@ export default function ChangePasswordModal() {
     setLoading(true)
     try {
       const result = await changePassword(current, newPass)
-      if (result.error) {
-        setError(result.error)
+      if ((result as any).error) {
+        setError((result as any).error)
       } else {
         setMustChangePassword(false)
       }

@@ -1,26 +1,63 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Product } from '../api/client'
+import { getComplementGroups } from '../api/client'
+import { useCart } from '../hooks/useCart'
+import { showToast } from './Toast'
 import ProductDetailModal from './ProductDetailModal'
 
 interface Props {
   product: Product
+  hasComplements?: boolean
 }
 
-export default function ProductCard({ product }: Props) {
+export default function ProductCard({ product, hasComplements: hasComplementsProp }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [imgLoaded, setImgLoaded] = useState(false)
+  const [imgError, setImgError] = useState(false)
+  const [hasComplementsLocal, setHasComplementsLocal] = useState<boolean | null>(null)
+  const addItem = useCart(s => s.addItem)
   const hasPromo = product.pricePromotional && product.pricePromotional < product.price
+  const isUnavailable = product.isAvailable === false
+
+  const hasComplements = hasComplementsProp !== undefined ? hasComplementsProp : hasComplementsLocal
+
+  useEffect(() => {
+    if (hasComplementsProp !== undefined || modalOpen) return
+    getComplementGroups(product.id).then(groups => {
+      setHasComplementsLocal(groups && groups.length > 0)
+    }).catch(() => setHasComplementsLocal(false))
+  }, [product.id, hasComplementsProp, modalOpen])
+
+  const handleDirectAdd = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isUnavailable) return
+    const basePrice = hasPromo ? product.pricePromotional! : product.price
+    addItem({
+      productId: product.id,
+      productName: product.name,
+      description: product.description,
+      unitPrice: basePrice,
+    })
+    showToast(`${product.name} adicionado ao carrinho!`, 'success')
+  }
+
+  const handleClick = () => {
+    if (isUnavailable) return
+    setModalOpen(true)
+  }
 
   return (
     <>
       <div
-        className="card card-hover"
+        className={`card card-hover ${isUnavailable ? 'product-unavailable' : ''}`}
         style={{
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          cursor: 'pointer', position: 'relative',
+          cursor: isUnavailable ? 'default' : 'pointer', position: 'relative',
         }}
-        onClick={() => setModalOpen(true)}
+        onClick={handleClick}
       >
+        {isUnavailable && <span className="product-unavailable-badge">Indisponível</span>}
+
         {product.isHighlighted && (
           <span style={{
             position: 'absolute', top: 8, left: 8, zIndex: 2,
@@ -33,17 +70,18 @@ export default function ProductCard({ product }: Props) {
           </span>
         )}
 
-        <div style={{
+        <div className="product-card-img" style={{
           width: '100%', height: 160,
           background: !imgLoaded ? 'linear-gradient(135deg, #f5f5f5, #e0e0e0)' : undefined,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden', position: 'relative',
         }}>
-          {product.image ? (
+          {product.image && !imgError ? (
             <img
               src={product.image}
               alt={product.name}
               onLoad={() => setImgLoaded(true)}
+              onError={() => setImgError(true)}
               style={{
                 width: '100%', height: '100%', objectFit: 'cover',
                 transition: 'transform .3s, opacity .3s',
@@ -69,7 +107,7 @@ export default function ProductCard({ product }: Props) {
           )}
         </div>
 
-        <div style={{ padding: '12px 14px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="product-card-body" style={{ padding: '12px 14px 14px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1 }}>
             <h3 style={{ fontSize: '.95rem', fontWeight: 700, lineHeight: 1.3 }}>{product.name}</h3>
             {product.ingredients.length > 0 && (
@@ -84,7 +122,7 @@ export default function ProductCard({ product }: Props) {
             )}
           </div>
 
-          <div style={{
+          <div className="product-card-price" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginTop: 10, gap: 8,
           }}>
@@ -105,16 +143,20 @@ export default function ProductCard({ product }: Props) {
               )}
             </div>
 
-            <span
-              className="btn btn-primary"
-              style={{
-                padding: '8px 14px', fontSize: '.8rem', borderRadius: 10,
-                minWidth: 90, textAlign: 'center', flexShrink: 0,
-              }}
-              onClick={e => { e.stopPropagation(); setModalOpen(true) }}
-            >
-              +
-            </span>
+            {hasComplements === false ? (
+              <button className="btn-add-direct" onClick={handleDirectAdd}>+</button>
+            ) : (
+              <span
+                className="btn btn-primary"
+                style={{
+                  padding: '8px 14px', fontSize: '.8rem', borderRadius: 10,
+                  minWidth: 90, textAlign: 'center', flexShrink: 0,
+                }}
+                onClick={e => { e.stopPropagation(); setModalOpen(true) }}
+              >
+                +
+              </span>
+            )}
           </div>
         </div>
       </div>

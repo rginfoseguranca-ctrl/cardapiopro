@@ -60,7 +60,7 @@ export default function Plans() {
                 <p key={f} style={{ padding: '4px 0', fontSize: '.9rem' }}>✅ {f}</p>
               ))}
             </div>
-            <Link to="/cadastro" className="btn" style={{ width: '100%', background: plan.popular ? 'var(--primary)' : 'var(--text)', color: '#fff', display: 'block' }}>
+            <Link to={`/cadastro?plan=${plan.name.toLowerCase()}`} className="btn" style={{ width: '100%', background: plan.popular ? 'var(--primary)' : 'var(--text)', color: '#fff', display: 'block' }}>
               {plan.cta}
             </Link>
           </div>

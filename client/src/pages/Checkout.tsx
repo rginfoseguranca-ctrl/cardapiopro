@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { createOrder, validateCoupon, applyCoupon, getStoreSettings, getPixQrCode } from '../api/client'
+import { createOrder, validateCoupon, applyCoupon, getStoreSettings, getPixQrCode, getDeliveryAreas } from '../api/client'
 import { useCart } from '../hooks/useCart'
 import { useOrderMode } from '../hooks/useOrderMode'
 
@@ -20,6 +20,15 @@ export default function Checkout() {
   const isBalcao = mode === 'balcao'
   const isDelivery = !isMesa && !isBalcao
   const { data: storeSettings } = useQuery({ queryKey: ['storeSettings'], queryFn: getStoreSettings })
+  const { data: deliveryAreas } = useQuery({
+    queryKey: ['deliveryAreas'],
+    queryFn: getDeliveryAreas,
+    enabled: isDelivery,
+  })
+
+  const [selectedAreaId, setSelectedAreaId] = useState<string>('')
+
+  const selectedArea = deliveryAreas?.find((a: any) => a.id === selectedAreaId)
 
   const [form, setForm] = useState({
     name: '', phone: '', payment: 'pix',
@@ -37,9 +46,11 @@ export default function Checkout() {
   const [couponError, setCouponError] = useState('')
   const [pixQrCode, setPixQrCode] = useState<string | null>(null)
 
-  const deliveryFee = isDelivery && storeSettings
-    ? (storeSettings.freeDeliveryFrom > 0 && subtotal() >= storeSettings.freeDeliveryFrom ? 0 : (storeSettings.deliveryFee || 0))
-    : 0
+  const deliveryFee = isDelivery && storeSettings && selectedArea
+    ? (selectedArea.freeDeliveryFrom > 0 && subtotal() >= selectedArea.freeDeliveryFrom ? 0 : (selectedArea.baseFee || 0))
+    : (isDelivery && storeSettings
+      ? (storeSettings.freeDeliveryFrom > 0 && subtotal() >= storeSettings.freeDeliveryFrom ? 0 : (storeSettings.deliveryFee || 0))
+      : 0)
 
   const totalBeforeDiscount = subtotal() + deliveryFee
   const finalTotal = Math.max(0, totalBeforeDiscount - couponDiscount)
@@ -238,6 +249,20 @@ export default function Checkout() {
         {isDelivery && (
           <div className="card p-xl mb-lg">
             <h3 className="mb-md">📍 Endereço de Entrega</h3>
+            {deliveryAreas && deliveryAreas.length > 0 && (
+              <div className="mb-md">
+                <p className="mb-sm" style={{fontWeight: 600, fontSize: '0.9rem'}}>Área de entrega</p>
+                <select className="input" value={selectedAreaId} onChange={e => setSelectedAreaId(e.target.value)}>
+                  <option value="">Selecione a área</option>
+                  {deliveryAreas.map((a: any) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} — {a.baseFee ? `R$ ${Number(a.baseFee).toFixed(2)}` : 'Grátis'}
+                      {a.freeDeliveryFrom > 0 ? ` (grátis acima de R$ ${Number(a.freeDeliveryFrom).toFixed(2)})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input className="input" placeholder="Rua/Av *"
                 value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />

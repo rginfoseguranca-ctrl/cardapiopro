@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getFinanceAccounts, createFinanceAccount, deleteFinanceAccount, getFinanceCategories, createFinanceCategory, deleteFinanceCategory, getFinanceTransactions, createFinanceTransaction, deleteFinanceTransaction, payFinanceTransaction, getFinanceRecurring, createFinanceRecurring, deleteFinanceRecurring, getFinanceSummary } from '../api/client'
 import { exportToCSV, financialToCSV } from '../utils/export'
 
-export default function FinancePanel() {
-  const [tab, setTab] = useState('dashboard')
+export default function FinancePanel({ initialTab }: { initialTab?: string }) {
+  const [tab, setTab] = useState(initialTab || 'dashboard')
 
   return (
     <div className="panel-fadeIn">

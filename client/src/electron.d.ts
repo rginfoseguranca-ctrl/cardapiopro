@@ -41,6 +41,7 @@ interface ElectronAPI {
   }
   complements: {
     listGroups: (productId?: string) => Promise<any[]>
+    listAllGroups: () => Promise<any>
     createGroup: (group: any) => Promise<any>
     createItem: (item: any) => Promise<any>
     deleteGroup: (id: string) => Promise<any>

@@ -5,12 +5,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY server/package.json ./server/
 COPY client/package.json ./client/
-COPY shared/package.json ./shared/
 
-RUN npm ci --workspace=server --workspace=client --workspace=shared
-
-COPY shared/ ./shared/
-RUN cd shared && npm run build 2>/dev/null || true
+RUN npm ci --workspace=server --workspace=client
 
 COPY server/ ./server/
 RUN cd server && npx tsc
@@ -31,7 +27,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server/dist ./server/dist/
 COPY --from=builder /app/server/src ./server/src/
 COPY --from=builder /app/client/dist ./client/dist/
-COPY --from=builder /app/shared/dist ./shared/dist/
 
 RUN mkdir -p /app/data
 

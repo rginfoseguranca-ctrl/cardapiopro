@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getStoreSettings, updateStoreSettings, type StoreSettings } from '../api/client'
+import { getStoreSettings, updateStoreSettings, setServerUrl, isDesktop, type StoreSettings } from '../api/client'
+import { electronApi } from '../api/electron-adapter'
 
 const styles: Record<string, React.CSSProperties> = {
   page: { padding: 24, display: 'flex', flexDirection: 'column', gap: 20, fontFamily: 'Inter, sans-serif', background: '#f5f5f5', minHeight: '100vh' },
@@ -47,19 +48,36 @@ export default function ConfigGeral() {
   const [pickupActive, setPickupActive] = useState(true)
   const [counterActive, setCounterActive] = useState(false)
   const [schedulingActive, setSchedulingActive] = useState(false)
+  const [storeOpen, setStoreOpen] = useState(true)
   const [deliveryFee, setDeliveryFee] = useState('5.00')
   const [freeFrom, setFreeFrom] = useState('50.00')
   const [minOrder, setMinOrder] = useState('20.00')
   const [observation, setObservation] = useState('')
   const [saved, setSaved] = useState(false)
+  const [serverUrlInput, setServerUrlInput] = useState('http://localhost:3001')
+  const [syncOnline, setSyncOnline] = useState(false)
 
   useEffect(() => {
     if (settings) {
       setSchedulingActive(settings.schedulingEnabled || false)
       setDeliveryFee(String(settings.deliveryFee || 5))
       setFreeFrom(String(settings.freeDeliveryFrom || 50))
+      setStoreOpen(settings.isOpen !== false)
     }
   }, [settings])
+
+  useEffect(() => {
+    if (!isDesktop) return
+    const check = async () => {
+      try {
+        const online = await electronApi.sync.isOnline()
+        setSyncOnline(online)
+      } catch { setSyncOnline(false) }
+    }
+    check()
+    const iv = setInterval(check, 10000)
+    return () => clearInterval(iv)
+  }, [])
 
   const updateMut = useMutation({
     mutationFn: (data: Partial<StoreSettings>) => updateStoreSettings(data),
@@ -69,9 +87,17 @@ export default function ConfigGeral() {
   const handleSave = () => {
     updateMut.mutate({
       schedulingEnabled: schedulingActive,
+      isOpen: storeOpen,
       deliveryFee: Number(deliveryFee),
       freeDeliveryFrom: Number(freeFrom),
     } as any)
+  }
+
+  const handleConnect = async () => {
+    try {
+      await setServerUrl(serverUrlInput)
+      setSyncOnline(true)
+    } catch { setSyncOnline(false) }
   }
 
   return (
@@ -81,6 +107,7 @@ export default function ConfigGeral() {
       <div style={styles.card}>
         <h3 style={styles.sectionTitle}>Modos de Venda</h3>
         <div style={styles.togglesRow}>
+          <Toggle label="Loja aberta agora" checked={storeOpen} onChange={() => setStoreOpen(!storeOpen)} />
           <Toggle label="Delivery ativo" checked={deliveryActive} onChange={() => setDeliveryActive(!deliveryActive)} />
           <Toggle label="Retirada ativa" checked={pickupActive} onChange={() => setPickupActive(!pickupActive)} />
           <Toggle label="Balcão ativo" checked={counterActive} onChange={() => setCounterActive(!counterActive)} />
@@ -110,6 +137,20 @@ export default function ConfigGeral() {
         <h3 style={styles.sectionTitle}>Mensagem de Observação</h3>
         <textarea style={styles.textarea} value={observation} onChange={e => setObservation(e.target.value)} placeholder="Mensagem exibida ao cliente..." />
       </div>
+
+      {isDesktop && <div style={styles.card}>
+        <h3 style={styles.sectionTitle}>Conexão com Servidor</h3>
+        <div style={styles.formRow}>
+          <div style={{ ...styles.field, flex: '1 1 300px' }}>
+            <label style={styles.label}>URL do Servidor</label>
+            <input style={styles.input} value={serverUrlInput} onChange={e => setServerUrlInput(e.target.value)} placeholder="http://localhost:3001" />
+          </div>
+          <button style={styles.btn} onClick={handleConnect}>Conectar</button>
+        </div>
+        <p style={{ fontSize: '0.85rem', color: syncOnline ? '#27ae60' : '#e74c3c', margin: 0 }}>
+          {syncOnline ? '● Conectado' : '○ Desconectado'}
+        </p>
+      </div>}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button style={styles.btn} onClick={handleSave} disabled={updateMut.isPending}>{updateMut.isPending ? 'Salvando...' : 'Salvar Configurações'}</button>

@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 export default function Register() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const selectedPlan = searchParams.get('plan') || 'premium'
   const [form, setForm] = useState({ storeName: '', name: '', email: '', password: '', confirmPassword: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -37,7 +39,18 @@ export default function Register() {
 
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
-      navigate('/admin')
+
+      if (selectedPlan && data.store?.id) {
+        try {
+          await fetch('/api/billing/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+            body: JSON.stringify({ plan: selectedPlan }),
+          })
+        } catch {}
+      }
+
+      navigate('/dashboard')
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -51,6 +64,16 @@ export default function Register() {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#333' }}>🍽️ CardápioPro</h1>
           <p style={{ color: '#666', fontSize: '.9rem' }}>Crie sua conta gratuita</p>
+          {selectedPlan && selectedPlan !== 'premium' && (
+            <div style={{ marginTop: 8, display: 'inline-block', padding: '4px 14px', borderRadius: 20, background: '#f0f9ff', color: '#0369a1', fontSize: '.75rem', fontWeight: 600 }}>
+              Plano selecionado: {selectedPlan === 'start' ? 'Start' : selectedPlan === 'profissional' ? 'Profissional' : 'Premium'}
+            </div>
+          )}
+          {selectedPlan === 'premium' && (
+            <div style={{ marginTop: 8, display: 'inline-block', padding: '4px 14px', borderRadius: 20, background: '#f0fdf4', color: '#15803d', fontSize: '.75rem', fontWeight: 600 }}>
+              Trial Premium 14 dias grátis
+            </div>
+          )}
         </div>
 
         {error && (

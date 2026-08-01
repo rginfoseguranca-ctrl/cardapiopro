@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 
 const features = [
@@ -18,8 +18,8 @@ const features = [
 
 const plans = [
   { name: 'Start', price: '49,99', desc: 'Para quem está começando no digital', features: ['Cardápio Digital', 'Pedidos WhatsApp', 'Dashboard de Vendas', 'Gestão de Clientes', 'Cupons e Descontos', 'Blog Integrado', 'Programa de Fidelidade'], cta: 'Teste Grátis', popular: false },
-  { name: 'Profissional', price: '99,00', desc: 'Gestão completa do seu restaurante', features: ['Tudo do Start +', 'Delivery com Rotas', 'Mesas e Comandas', 'KDS Cozinha', 'PDV Integrado', 'Fiado e Estoque', 'Impressoras'], cta: 'Teste Grátis 14 Dias', popular: true },
-  { name: 'Premium', price: '149,99', desc: 'Para quem quer crescer com força total', features: ['Tudo do Profissional +', 'Chatbot IA WhatsApp', 'CRM Completo', 'Cashback Automático', 'Campanhas em Massa', 'Multi-Lojas', 'Suporte VIP'], cta: 'Falar com Consultor', popular: false },
+  { name: 'Profissional', price: '79,99', desc: 'Gestão completa do seu restaurante', features: ['Tudo do Start +', 'Delivery com Rotas', 'Mesas e Comandas', 'KDS Cozinha', 'PDV Integrado', 'Fiado e Estoque', 'Impressoras'], cta: 'Teste Grátis 14 Dias', popular: true },
+  { name: 'Premium', price: '149,99', desc: 'Para quem quer crescer com força total', features: ['Tudo do Profissional +', 'Chatbot IA WhatsApp', 'CRM Completo', 'Cashback Automático', 'Campanhas em Massa', 'Multi-Lojas', 'Suporte VIP'], cta: 'Teste Grátis 14 Dias', popular: false },
 ]
 
 const faqItems = [
@@ -47,8 +47,10 @@ const testimonials = [
 ]
 
 export default function Landing() {
+  const navigate = useNavigate()
   const [activePillar, setActivePillar] = useState(0)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [heroForm, setHeroForm] = useState({ storeName: '', email: '', whatsapp: '', segment: '' })
 
   const pillars = [
     { icon: '🤖', bg: '#e8f5e9', title: 'Automação', desc: 'Cardápios digitais, chatbot de WhatsApp, agendamento e pagamentos online para automatizar seu atendimento.', items: ['Chatbot com IA', 'Cardápio Digital', 'Pagamento Online', 'Agendamento'] },
@@ -90,10 +92,10 @@ export default function Landing() {
             <div style={{ background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.2)', maxWidth: 420 }}>
               <p style={{ fontSize: '1rem', fontWeight: 700, color: '#333', marginBottom: 16 }}>Comece seu teste grátis agora</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input placeholder="Nome do restaurante" style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' as const }} />
-                <input placeholder="Seu e-mail" type="email" style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' as const }} />
-                <input placeholder="WhatsApp (DDD + número)" style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' as const }} />
-                <select style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', color: '#666', background: '#fff', boxSizing: 'border-box' as const }}>
+                <input placeholder="Nome do restaurante" value={heroForm.storeName} onChange={e => setHeroForm(f => ({ ...f, storeName: e.target.value }))} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' as const }} />
+                <input placeholder="Seu e-mail" type="email" value={heroForm.email} onChange={e => setHeroForm(f => ({ ...f, email: e.target.value }))} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' as const }} />
+                <input placeholder="WhatsApp (DDD + número)" value={heroForm.whatsapp} onChange={e => setHeroForm(f => ({ ...f, whatsapp: e.target.value }))} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' as const }} />
+                <select value={heroForm.segment} onChange={e => setHeroForm(f => ({ ...f, segment: e.target.value }))} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e0e0e0', fontSize: '.9rem', outline: 'none', color: heroForm.segment ? '#333' : '#666', background: '#fff', boxSizing: 'border-box' as const }}>
                   <option>Qual o seu segmento?</option>
                   <option>Pizzaria</option>
                   <option>Hamburgueria</option>
@@ -105,7 +107,7 @@ export default function Landing() {
                   <option>Marmitaria</option>
                   <option>Outro</option>
                 </select>
-                <button style={{ width: '100%', padding: '14px', borderRadius: 8, background: '#e74c3c', color: '#fff', fontWeight: 700, fontSize: '1rem', border: 'none', cursor: 'pointer', marginTop: 4 }}>TESTE AGORA POR 14 DIAS</button>
+                <button onClick={() => navigate('/cadastro')} style={{ width: '100%', padding: '14px', borderRadius: 8, background: '#e74c3c', color: '#fff', fontWeight: 700, fontSize: '1rem', border: 'none', cursor: 'pointer', marginTop: 4 }}>TESTE AGORA POR 14 DIAS</button>
                 <p style={{ fontSize: '.75rem', color: '#999', marginTop: 4, textAlign: 'center' as const }}>Sem cartão de crédito • Cancele quando quiser</p>
               </div>
             </div>

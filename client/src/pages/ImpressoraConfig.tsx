@@ -1,12 +1,6 @@
 import { useState } from 'react';
-
-interface Printer {
-  id: string;
-  name: string;
-  sector: string;
-  ip: string;
-  active: boolean;
-}
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getPrinters, createPrinter, deletePrinter } from '../api/client'
 
 const sectors = ['Cozinha', 'Balcão', 'Bar'];
 
@@ -41,11 +35,6 @@ const styles: Record<string, React.CSSProperties> = {
   toggleCircle: { width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute' as const, top: 3, transition: 'left .2s', boxShadow: '0 1px 2px rgba(0,0,0,.15)' },
 };
 
-const initialPrinters: Printer[] = [
-  { id: '1', name: 'Epson Térmica', sector: 'Cozinha', ip: '192.168.1.100', active: true },
-  { id: '2', name: 'Bematech', sector: 'Balcão', ip: '192.168.1.101', active: true },
-];
-
 interface ToggleProps {
   label: string;
   checked: boolean;
@@ -64,8 +53,15 @@ function Toggle({ label, checked, onChange }: ToggleProps) {
 }
 
 export default function ImpressoraConfig() {
+  const queryClient = useQueryClient()
+  const { data: printers = [] } = useQuery({
+    queryKey: ['printers'],
+    queryFn: async () => {
+      const data = await getPrinters()
+      return Array.isArray(data) ? data : []
+    }
+  })
   const [activeTab, setActiveTab] = useState<'vincular' | 'setores' | 'config'>('vincular');
-  const [printers, setPrinters] = useState<Printer[]>(initialPrinters);
   const [printerName, setPrinterName] = useState('');
   const [printerSector, setPrinterSector] = useState('Cozinha');
   const [printerIp, setPrinterIp] = useState('');
@@ -76,22 +72,28 @@ export default function ImpressoraConfig() {
   const [autoPrint, setAutoPrint] = useState(true);
   const [printCopies, setPrintCopies] = useState('1');
 
+  const addMutation = useMutation({
+    mutationFn: () => createPrinter({ name: printerName, sector: printerSector }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['printers'] })
+      setPrinterName('')
+      setPrinterIp('')
+      setPrinterSector('Cozinha')
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deletePrinter(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['printers'] })
+  })
+
   const handleAddPrinter = () => {
     if (!printerName) return;
-    setPrinters([...printers, {
-      id: Date.now().toString(),
-      name: printerName,
-      sector: printerSector,
-      ip: printerIp,
-      active: true,
-    }]);
-    setPrinterName('');
-    setPrinterIp('');
-    setPrinterSector('Cozinha');
+    addMutation.mutate()
   };
 
   const handleRemovePrinter = (id: string) => {
-    setPrinters(printers.filter(p => p.id !== id));
+    deleteMutation.mutate(id)
   };
 
   return (
@@ -123,15 +125,16 @@ export default function ImpressoraConfig() {
                 <label style={styles.label}>IP</label>
                 <input style={styles.input} value={printerIp} onChange={e => setPrinterIp(e.target.value)} placeholder="192.168.1.100" />
               </div>
-              <button style={styles.btn} onClick={handleAddPrinter}>Adicionar</button>
+              <button style={styles.btn} onClick={handleAddPrinter} disabled={addMutation.isPending}>{addMutation.isPending ? 'Adicionando...' : 'Adicionar'}</button>
             </div>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Impressoras Vinculadas</h3>
             <div style={styles.printerList}>
-              {printers.map(p => (
+              {printers.length === 0 && <p style={{ color: '#888', fontSize: 14 }}>Nenhuma impressora vinculada</p>}
+              {printers.map((p: any) => (
                 <div key={p.id} style={styles.printerItem}>
                   <div style={styles.printerInfo}>
                     <span style={styles.printerName}>{p.name}</span>
-                    <span style={styles.printerSector}>{p.sector} — {p.ip}</span>
+                    <span style={styles.printerSector}>{p.sector || p.name} — {p.ip || 'Sem IP'}</span>
                   </div>
                   <button style={styles.btnDelete} onClick={() => handleRemovePrinter(p.id)}>Remover</button>
                 </div>
@@ -145,7 +148,7 @@ export default function ImpressoraConfig() {
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Setores de Impressão</h3>
             <div style={styles.sectorList}>
               {sectors.map(s => {
-                const count = printers.filter(p => p.sector === s).length;
+                const count = printers.filter((p: any) => p.sector === s).length;
                 return (
                   <div key={s} style={styles.sectorItem}>
                     <span>{s}</span>

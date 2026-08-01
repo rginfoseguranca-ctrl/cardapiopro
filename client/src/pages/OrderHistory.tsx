@@ -25,7 +25,7 @@ export default function OrderHistory() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['customerOrders', phone],
     queryFn: async () => {
-      const { data } = await api.get(`/customers/phone/${phone}/orders`)
+      const { data } = await api.get(`/customers/public/phone/${phone}/orders`)
       return data
     },
     enabled: phone.length >= 10,

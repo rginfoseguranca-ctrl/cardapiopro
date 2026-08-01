@@ -1,27 +1,4 @@
-import type { Product, Category, Order, DashboardSummary, Customer, ComplementGroup, StoreSettings } from './client'
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      isElectron: boolean
-      products: { list: () => Promise<any[]>; listAll: () => Promise<any[]>; get: (id: string) => Promise<any>; create: (p: any) => Promise<any>; update: (id: string, d: any) => Promise<any>; delete: (id: string) => Promise<any> }
-      categories: { list: () => Promise<any[]>; create: (c: any) => Promise<any>; update: (id: string, d: any) => Promise<any>; delete: (id: string) => Promise<any>; reorder: (ids: string[]) => Promise<any> }
-      orders: { list: () => Promise<any[]>; get: (id: string) => Promise<any>; create: (o: any) => Promise<any>; updateStatus: (id: string, s: string) => Promise<any> }
-      tables: { list: () => Promise<any[]>; create: (n: number) => Promise<any>; update: (id: string, d: any) => Promise<any>; delete: (id: string) => Promise<any> }
-      cashRegister: { get: () => Promise<any>; addEntry: (e: any) => Promise<any> }
-      inventory: { list: () => Promise<any[]>; upsert: (p: any) => Promise<any>; adjust: (id: string, t: string, q: number, r: string) => Promise<any> }
-      complements: { listGroups: (pid?: string) => Promise<any[]>; createGroup: (g: any) => Promise<any>; createItem: (i: any) => Promise<any>; deleteGroup: (id: string) => Promise<any>; deleteItem: (id: string) => Promise<any> }
-      customers: { list: () => Promise<any[]>; get: (id: string) => Promise<any>; upsert: (d: any) => Promise<any> }
-      fiado: { list: () => Promise<any>; create: (d: any) => Promise<any>; pay: (id: string) => Promise<any> }
-      store: { get: () => Promise<any>; update: (d: any) => Promise<any> }
-      dashboard: { summary: () => Promise<any> }
-      sync: { getStatus: () => Promise<{ pending: number; lastSync: string | null }>; forceSync: () => Promise<any>; pushPending: () => Promise<any>; isOnline: () => Promise<boolean> }
-      images: { cache: (url: string) => Promise<string | null>; getCachedPath: (url: string) => Promise<string | null>; clearCache: () => Promise<any> }
-      coupons: { list: () => Promise<any[]>; create: (c: any) => Promise<any>; delete: (id: string) => Promise<any> }
-      loyalty: { rewards: () => Promise<any[]>; createReward: (r: any) => Promise<any>; deleteReward: (id: string) => Promise<any> }
-    }
-  }
-}
+import type { Product, Category, Order, StoreSettings } from './client'
 
 export function isElectron(): boolean {
   return typeof window !== 'undefined' && !!window.electronAPI?.isElectron
@@ -35,6 +12,7 @@ function mapProduct(p: any): Product {
     price: Number(p.price),
     pricePromotional: p.price_promotional || p.pricePromotional || undefined,
     image: p.image || '',
+    barcode: p.barcode || '',
     categoryId: p.category_id || p.categoryId || '',
     categoryName: p.category_name || p.categoryName || '',
     categoryIcon: p.category_icon || p.categoryIcon || '',
@@ -165,8 +143,11 @@ export const electronApi = {
 
   complements: {
     listGroups: (productId?: string) => window.electronAPI!.complements.listGroups(productId),
+    listAllGroups: () => window.electronAPI!.complements.listAllGroups(),
     createGroup: (group: any) => window.electronAPI!.complements.createGroup(group),
+    updateGroup: (id: string, data: any) => window.electronAPI!.complements.updateGroup(id, data),
     createItem: (item: any) => window.electronAPI!.complements.createItem(item),
+    updateItem: (id: string, data: any) => window.electronAPI!.complements.updateItem(id, data),
     deleteGroup: (id: string) => window.electronAPI!.complements.deleteGroup(id),
     deleteItem: (id: string) => window.electronAPI!.complements.deleteItem(id),
   },
@@ -203,6 +184,7 @@ export const electronApi = {
         deliveryFee: Number(data.delivery_fee || data.deliveryFee || 0),
         freeDeliveryFrom: Number(data.free_delivery_from || data.freeDeliveryFrom || 0),
         avisos: typeof data.avisos === 'string' ? JSON.parse(data.avisos || '[]') : (data.avisos || []),
+        isOpen: data.is_open !== undefined ? Boolean(data.is_open) : true,
       }
     },
     update: (data: any) => window.electronAPI!.store.update(data),
@@ -217,10 +199,12 @@ export const electronApi = {
     forceSync: () => window.electronAPI!.sync.forceSync(),
     pushPending: () => window.electronAPI!.sync.pushPending(),
     isOnline: () => window.electronAPI!.sync.isOnline(),
+    setServerUrl: (url: string) => window.electronAPI!.sync.setServerUrl(url),
   },
 
   images: {
     cache: (url: string) => window.electronAPI!.images.cache(url),
+    cacheFromBuffer: (name: string, buffer: ArrayBuffer) => window.electronAPI!.images.cacheFromBuffer(name, buffer),
     getCachedPath: (url: string) => window.electronAPI!.images.getCachedPath(url),
     clearCache: () => window.electronAPI!.images.clearCache(),
   },
@@ -235,6 +219,11 @@ export const electronApi = {
     rewards: () => window.electronAPI!.loyalty.rewards(),
     createReward: (reward: any) => window.electronAPI!.loyalty.createReward(reward),
     deleteReward: (id: string) => window.electronAPI!.loyalty.deleteReward(id),
+  },
+
+  integrations: {
+    list: () => window.electronAPI!.integrations.list(),
+    save: (key: string, value: string) => window.electronAPI!.integrations.save(key, value),
   },
 
   auth: {

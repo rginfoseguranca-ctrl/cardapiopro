@@ -1,35 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getSubscription, changePlan } from '../api/client';
 
 interface PlanFeature {
   name: string;
   start: string | boolean;
-  pro: string | boolean;
+  profissional: string | boolean;
   premium: string | boolean;
 }
 
 const features: PlanFeature[] = [
-  { name: 'Cardápio digital', start: true, pro: true, premium: true },
-  { name: 'Pedidos delivery', start: true, pro: true, premium: true },
-  { name: 'Retirada', start: true, pro: true, premium: true },
-  { name: 'Produtos ilimitados', start: '50', pro: '500', premium: 'Ilimitado' },
-  { name: 'Categorias', start: '5', pro: '30', premium: 'Ilimitado' },
-  { name: 'Complementos', start: false, pro: true, premium: true },
-  { name: 'Impressão automática', start: false, pro: true, premium: true },
-  { name: 'Integrações', start: false, pro: 'Básico', premium: 'Completo' },
-  { name: 'Suporte prioritário', start: false, pro: false, premium: true },
-  { name: 'Multi-loja', start: false, pro: false, premium: true },
+  { name: 'Cardápio digital', start: true, profissional: true, premium: true },
+  { name: 'Pedidos delivery', start: true, profissional: true, premium: true },
+  { name: 'Retirada', start: true, profissional: true, premium: true },
+  { name: 'Produtos ilimitados', start: '100', profissional: '500', premium: 'Ilimitado' },
+  { name: 'Categorias', start: '5', profissional: '30', premium: 'Ilimitado' },
+  { name: 'Complementos', start: false, profissional: true, premium: true },
+  { name: 'Impressão automática', start: false, profissional: true, premium: true },
+  { name: 'Integrações', start: false, profissional: 'Básico', premium: 'Completo' },
+  { name: 'Suporte prioritário', start: false, profissional: false, premium: true },
+  { name: 'Multi-loja', start: false, profissional: false, premium: true },
 ];
 
 const planPrices: Record<string, string> = {
-  Start: 'R$ 49,90/mês',
-  Profissional: 'R$ 99,90/mês',
-  Premium: 'R$ 179,90/mês',
+  start: 'R$ 49,99/mês',
+  profissional: 'R$ 79,99/mês',
+  premium: 'R$ 149,99/mês',
 };
 
 const planColors: Record<string, string> = {
-  Start: '#60a5fa',
-  Profissional: '#a78bfa',
-  Premium: '#f59e0b',
+  start: '#60a5fa',
+  profissional: '#a78bfa',
+  premium: '#f59e0b',
 };
 
 const styles: Record<string, React.CSSProperties> = {
@@ -54,8 +55,36 @@ const styles: Record<string, React.CSSProperties> = {
 };
 
 export default function Assinaturas() {
-  const currentPlan = 'Profissional';
+  const [currentPlan, setCurrentPlan] = useState('start');
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        const data = await getSubscription();
+        if (data.plan) setCurrentPlan(data.plan);
+      } catch {}
+    };
+    fetchSubscription();
+  }, []);
+
+  const handleChangePlan = async (plan: string) => {
+    setLoading(true);
+    setMessage('');
+    try {
+      await changePlan(plan);
+      setCurrentPlan(plan);
+      setSelectedPlan(null);
+      setMessage('Plano alterado com sucesso!');
+      setTimeout(() => setMessage(''), 3000);
+    } catch {
+      setMessage('Erro ao alterar plano');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const renderValue = (val: string | boolean) => {
     if (val === true) return <span style={styles.check}>✓</span>;
@@ -67,31 +96,19 @@ export default function Assinaturas() {
     <div style={styles.page}>
       <h1 style={styles.title}>Assinatura</h1>
 
+      {message && (
+        <div style={{ padding: '12px 16px', borderRadius: 8, background: message.includes('sucesso') ? '#dcfce7' : '#fee2e2', color: message.includes('sucesso') ? '#166534' : '#dc2626', fontSize: '.9rem' }}>
+          {message}
+        </div>
+      )}
+
       <div style={styles.card}>
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Plano Atual</h3>
         <div style={styles.planCard}>
-          <span style={{ ...styles.planBadge, background: planColors[currentPlan] }}>{currentPlan}</span>
+          <span style={{ ...styles.planBadge, background: planColors[currentPlan] || planColors.start }}>{currentPlan === 'start' ? 'Start' : currentPlan === 'profissional' ? 'Profissional' : 'Premium'}</span>
           <div style={styles.planInfo}>
-            <span style={styles.planName}>Plano {currentPlan}</span>
-            <span style={styles.planPrice}>{planPrices[currentPlan]} — Renova em 15/08/2026</span>
-          </div>
-        </div>
-      </div>
-
-      <div style={styles.card}>
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>Uso Atual</h3>
-        <div style={styles.statsRow}>
-          <div style={styles.statItem}>
-            <span style={styles.statValue}>24</span>
-            <span style={styles.statLabel}>Produtos cadastrados</span>
-          </div>
-          <div style={styles.statItem}>
-            <span style={styles.statValue}>312</span>
-            <span style={styles.statLabel}>Pedidos este mês</span>
-          </div>
-          <div style={styles.statItem}>
-            <span style={styles.statValue}>3</span>
-            <span style={styles.statLabel}>Usuários ativos</span>
+            <span style={styles.planName}>Plano {currentPlan === 'start' ? 'Start' : currentPlan === 'profissional' ? 'Profissional' : 'Premium'}</span>
+            <span style={styles.planPrice}>{planPrices[currentPlan] || planPrices.start}</span>
           </div>
         </div>
       </div>
@@ -112,14 +129,14 @@ export default function Assinaturas() {
               <tr key={f.name}>
                 <td style={styles.td}>{f.name}</td>
                 <td style={styles.td}>{renderValue(f.start)}</td>
-                <td style={styles.td}>{renderValue(f.pro)}</td>
+                <td style={styles.td}>{renderValue(f.profissional)}</td>
                 <td style={styles.td}>{renderValue(f.premium)}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' as const, marginTop: 8 }}>
-          {['Start', 'Profissional', 'Premium'].map(p => (
+          {['start', 'profissional', 'premium'].map(p => (
             <button
               key={p}
               style={{
@@ -128,10 +145,10 @@ export default function Assinaturas() {
                 color: p === currentPlan ? '#888' : selectedPlan === p ? '#fff' : '#333',
                 cursor: p === currentPlan ? 'default' : 'pointer',
               }}
-              disabled={p === currentPlan}
-              onClick={() => setSelectedPlan(p)}
+              disabled={p === currentPlan || loading}
+              onClick={() => p === currentPlan ? null : handleChangePlan(p)}
             >
-              {p === currentPlan ? 'Plano Atual' : `Mudar para ${p}`}
+              {p === currentPlan ? 'Plano Atual' : loading ? 'Alterando...' : `Mudar para ${p === 'start' ? 'Start' : p === 'profissional' ? 'Profissional' : 'Premium'}`}
             </button>
           ))}
         </div>

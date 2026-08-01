@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 const tabLabels: Record<string, string> = {
@@ -59,7 +60,7 @@ export default function DashboardHeader({
         <h1 className="dashboard-title">{label === 'Painel' ? `${storeIcon} ${storeName}` : label}</h1>
       </div>
       <div className="dashboard-header-actions">
-        <a href="/" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">🔗 Ver Cardápio</a>
+        <Link to="/cardapio" className="btn btn-sm btn-outline">🔗 Ver Cardápio</Link>
         <button className="btn btn-sm btn-outline" style={{ position: 'relative', fontSize: '1.1rem', padding: '6px 10px' }}>
           🔔
           {pendingCount > 0 && (
