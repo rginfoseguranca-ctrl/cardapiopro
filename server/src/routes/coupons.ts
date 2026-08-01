@@ -1,11 +1,15 @@
 import { Router, Request, Response } from 'express'
-import { dbAll, dbGet, dbRun } from '../database'
-import { authMiddleware } from '../middleware'
+import { couponsRepository, findActiveCouponByCode, findCouponByCode, incrementCouponUse } from '../repositories/coupons'
+import { authMiddleware, AuthRequest } from '../middleware'
 
 const router = Router()
 
-router.get('/', authMiddleware, (_req: Request, res: Response) => {
-  const coupons = dbAll('SELECT * FROM coupons ORDER BY created_at DESC')
+function storeId(req: Request): string | null {
+  return (req as AuthRequest).storeId || 'main'
+}
+
+router.get('/', authMiddleware, (req: Request, res: Response) => {
+  const coupons = couponsRepository.findAll(storeId(req), undefined, [], 'created_at DESC')
   res.json(coupons.map((c: any) => ({
     ...c,
     isActive: !!c.is_active,
@@ -24,16 +28,14 @@ router.post('/', authMiddleware, (req: Request, res: Response) => {
   if (!code || !title || !discountType || discountValue == null) {
     res.status(400).json({ error: 'Dados obrigatórios faltando' }); return
   }
-  const existing = dbGet('SELECT id FROM coupons WHERE code = ?', [code.toUpperCase()])
-  if (existing) { res.status(400).json({ error: 'Código já existe' }); return }
+  const sid = storeId(req)
+  if (findCouponByCode(sid, code)) { res.status(400).json({ error: 'Código já existe' }); return }
 
-  const id = 'coup_' + Date.now() + Math.random().toString(36).slice(2, 6)
-  dbRun(
-    `INSERT INTO coupons (id, code, title, description, discount_type, discount_value, min_order_value, max_uses, starts_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, code.toUpperCase(), title, description || '', discountType, discountValue, minOrderValue || 0, maxUses || 0, startsAt || null, expiresAt || null]
-  )
-  const coupon = dbGet('SELECT * FROM coupons WHERE id = ?', [id])
+  const coupon = couponsRepository.insert(sid, {
+    code: code.toUpperCase(), title, description: description || '', discount_type: discountType,
+    discount_value: discountValue, min_order_value: minOrderValue || 0, max_uses: maxUses || 0,
+    starts_at: startsAt || null, expires_at: expiresAt || null,
+  })
   res.status(201).json(coupon)
 })
 
@@ -41,7 +43,7 @@ router.post('/validate', (req: Request, res: Response) => {
   const { code, orderValue } = req.body
   if (!code) { res.status(400).json({ error: 'Código obrigatório' }); return }
 
-  const coupon = dbGet('SELECT * FROM coupons WHERE code = ? AND is_active = 1', [code.toUpperCase()])
+  const coupon = findActiveCouponByCode(storeId(req), code)
   if (!coupon) { res.status(404).json({ error: 'Cupom não encontrado' }); return }
 
   const now = new Date().toISOString()
@@ -70,12 +72,12 @@ router.post('/validate', (req: Request, res: Response) => {
 })
 
 router.patch('/:id/use', authMiddleware, (req: Request, res: Response) => {
-  dbRun('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?', [req.params.id])
+  incrementCouponUse(storeId(req), String(req.params.id))
   res.json({ success: true })
 })
 
 router.delete('/:id', authMiddleware, (req: Request, res: Response) => {
-  dbRun('DELETE FROM coupons WHERE id = ?', [req.params.id])
+  couponsRepository.remove(storeId(req), String(req.params.id))
   res.json({ success: true })
 })
 

@@ -1,5 +1,6 @@
 import { createRepository, BaseRepository } from './base'
 import { v4 as uuid } from 'uuid'
+import { db } from './db'
 import {
   CompanySettings, Store, StoreSetting, Product, Category,
 } from './types'
@@ -26,6 +27,14 @@ export function getStoreSetting(storeId: string | null, key: string): string | n
   if (!key) return null
   const row = storeSettingsRepository.findById(storeId, key)
   return row ? row.value : null
+}
+
+export function setStoreSetting(storeId: string | null, key: string, value: string): void {
+  if (!key) return
+  db.run(
+    'INSERT OR REPLACE INTO store_settings (key, value, store_id) VALUES (?, ?, ?)',
+    [key, String(value ?? ''), storeId ?? 'main']
+  )
 }
 
 // Tabela `stores` (multi-loja, sem escopo) — usada para resolução de slug

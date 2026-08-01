@@ -1,21 +1,28 @@
 import { Router, Request, Response } from 'express'
-import { dbAll, dbGet, dbRun } from '../database'
+import { customersRepository, findCustomerByPhone } from '../repositories/customers'
+import { ordersRepository } from '../repositories/orders'
+import { cashbackTransactionsRepository } from '../repositories/loyalty'
+import { loyaltyPointsRepository } from '../repositories/loyalty'
+import { AuthRequest } from '../middleware'
 
 const router = Router()
 
-// Public endpoint - get customer orders by phone (no auth required)
+function storeId(req: Request): string | null {
+  return (req as AuthRequest).storeId || 'main'
+}
+
 router.get('/phone/:phone/orders', (req: Request, res: Response) => {
   const phone = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone
   const cleanPhone = phone.replace(/\D/g, '')
-  const customer = dbGet('SELECT * FROM customers WHERE phone = ?', [cleanPhone])
-  
+  const customer = findCustomerByPhone(storeId(req), cleanPhone)
+
   if (!customer) {
     res.json({ orders: [], customer: null })
     return
   }
-  
-  const orders = dbAll('SELECT * FROM orders WHERE customer_phone = ? ORDER BY created_at DESC', [customer.phone])
-  res.json({ 
+
+  const orders = ordersRepository.findAll(storeId(req), 'customer_phone = ?', [customer.phone], 'created_at DESC')
+  res.json({
     customer: { ...customer, tags: JSON.parse(customer.tags || '[]') },
     orders: orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) }))
   })
@@ -26,9 +33,10 @@ router.get('/', (req: Request, res: Response) => {
   const tag = req.query.tag as string || ''
   const minOrders = Number(req.query.minOrders) || 0
   const since = req.query.since as string || ''
+  const sid = storeId(req)
 
-  let sql = 'SELECT * FROM customers WHERE 1=1'
-  const params: any[] = []
+  let sql = 'SELECT * FROM customers WHERE store_id = ?'
+  const params: any[] = [sid ?? 'main']
 
   if (since) {
     sql += ' AND updated_at >= ?'
@@ -49,17 +57,19 @@ router.get('/', (req: Request, res: Response) => {
 
   sql += ' ORDER BY total_spent DESC'
 
-  const customers = dbAll(sql, params)
+  const customers = customersRepository.raw(sid, sql, params)
   res.json(customers.map((c: any) => ({ ...c, tags: JSON.parse(c.tags || '[]') })))
 })
 
 router.get('/:id', (req: Request, res: Response) => {
-  const customer = dbGet('SELECT * FROM customers WHERE id = ?', [req.params.id])
+  const sid = storeId(req)
+  const id = String(req.params.id)
+  const customer = customersRepository.findById(sid, id)
   if (!customer) { res.status(404).json({ error: 'Cliente não encontrado' }); return }
 
-  const orders = dbAll('SELECT * FROM orders WHERE customer_phone = ? ORDER BY created_at DESC', [customer.phone])
-  const cashback = dbAll('SELECT * FROM cashback_transactions WHERE customer_id = ? ORDER BY created_at DESC', [req.params.id])
-  const loyalty = dbAll('SELECT points FROM loyalty_points WHERE customer_id = ?', [req.params.id])
+  const orders = ordersRepository.findAll(sid, 'customer_phone = ?', [customer.phone], 'created_at DESC')
+  const cashback = cashbackTransactionsRepository.findAll(sid, 'customer_id = ?', [id], 'created_at DESC')
+  const loyalty = loyaltyPointsRepository.findAll(sid, 'customer_id = ?', [id])
   const loyaltyBalance = loyalty.reduce((s: number, r: any) => s + r.points, 0)
 
   res.json({
@@ -72,24 +82,35 @@ router.get('/:id', (req: Request, res: Response) => {
 })
 
 router.patch('/:id', (req: Request, res: Response) => {
+  const sid = storeId(req)
+  const id = String(req.params.id)
   const { notes, tags } = req.body
-  if (notes !== undefined) dbRun('UPDATE customers SET notes = ? WHERE id = ?', [notes, req.params.id])
-  if (tags !== undefined) dbRun('UPDATE customers SET tags = ? WHERE id = ?', [JSON.stringify(tags), req.params.id])
-  const customer = dbGet('SELECT * FROM customers WHERE id = ?', [req.params.id])
-  res.json({ ...customer, tags: JSON.parse(customer.tags || '[]') })
+  const patch: Record<string, any> = {}
+  if (notes !== undefined) patch.notes = notes
+  if (tags !== undefined) patch.tags = JSON.stringify(tags)
+  customersRepository.update(sid, id, patch)
+  const customer = customersRepository.findById(sid, id)
+  res.json({ ...customer, tags: JSON.parse(customer?.tags || '[]') })
 })
 
-router.get('/stats/segmentation', (_req: Request, res: Response) => {
-  const total = dbAll('SELECT COUNT(*) as count FROM customers')[0]?.count || 0
-  const repeat = dbAll('SELECT COUNT(*) as count FROM customers WHERE total_orders > 1')[0]?.count || 0
-  const active30days = dbAll("SELECT COUNT(*) as count FROM customers WHERE last_order_at >= datetime('now', '-30 days')")[0]?.count || 0
-  const highValue = dbAll('SELECT COUNT(*) as count FROM customers WHERE total_spent > 100')[0]?.count || 0
-  const atRisk = dbAll("SELECT COUNT(*) as count FROM customers WHERE (last_order_at IS NULL OR last_order_at < datetime('now', '-60 days')) AND total_orders > 0")[0]?.count || 0
-  const top = dbAll('SELECT * FROM customers ORDER BY total_spent DESC LIMIT 10')
-  const byMonth = dbAll(`
-    SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count
-    FROM customers GROUP BY month ORDER BY month DESC LIMIT 12
-  `)
+router.get('/stats/segmentation', (req: Request, res: Response) => {
+  const sid = storeId(req)
+  const count = (clause: string) => {
+    const rows = customersRepository.raw(sid, `SELECT COUNT(*) as count FROM customers WHERE store_id = ? AND ${clause}`, [sid ?? 'main'])
+    return rows[0]?.count || 0
+  }
+  const total = count('1=1')
+  const repeat = count('total_orders > 1')
+  const active30days = count("last_order_at >= datetime('now', '-30 days')")
+  const highValue = count('total_spent > 100')
+  const atRisk = count("(last_order_at IS NULL OR last_order_at < datetime('now', '-60 days')) AND total_orders > 0")
+  const top = customersRepository.findAll(sid, undefined, [], 'total_spent DESC LIMIT 10')
+  const byMonth = customersRepository.raw(
+    sid,
+    `SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count
+     FROM customers WHERE store_id = ? GROUP BY month ORDER BY month DESC LIMIT 12`,
+    [sid ?? 'main']
+  )
   res.json({ total, active30days, highValue, atRisk, repeatRate: total > 0 ? (repeat / total * 100).toFixed(1) : 0, top, byMonth })
 })
 
