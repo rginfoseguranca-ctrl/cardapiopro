@@ -2,7 +2,10 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
 import path from 'path'
-import { dbGet, dbRun } from './database'
+import { findStoreBySlug } from './repositories/fixtures'
+import { findSubscriptionByStore, countUsersInStore } from './repositories/global'
+import { productsRepository } from './repositories/products'
+import { ordersRepository } from './repositories/orders'
 
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
 
@@ -70,7 +73,7 @@ export function resolveStoreScope(req: Request, res: Response, next: NextFunctio
 
   const slug = (req.headers['x-store-slug'] as string) || (req.query.store_slug as string)
   if (slug) {
-    const store = dbGet('SELECT id FROM stores WHERE slug = ?', [slug])
+    const store = findStoreBySlug(slug)
     if (store) {
       ;(req as AuthRequest).storeId = store.id
       next()
@@ -146,27 +149,27 @@ const PLAN_LIMITS: Record<string, { maxProducts: number; maxOrdersMonth: number;
 export function planLimitMiddleware(resource: 'products' | 'orders' | 'users') {
   return (req: Request, res: Response, next: NextFunction) => {
     const storeId = (req as AuthRequest).storeId || 'main'
-    const sub = dbGet('SELECT plan FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId])
+    const sub = findSubscriptionByStore(storeId)
     const plan = sub?.plan || 'start'
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.start
 
     if (plan === 'premium') { next(); return }
 
     if (resource === 'products') {
-      const count = dbGet('SELECT COUNT(*) as c FROM products WHERE store_id = ?', [storeId])
-      if (count?.c >= limits.maxProducts) {
+      const count = productsRepository.count(storeId)
+      if (count >= limits.maxProducts) {
         res.status(403).json({ error: `Limite de ${limits.maxProducts} produtos atingido. Atualize seu plano.`, limitType: 'products' })
         return
       }
     } else if (resource === 'orders') {
-      const count = dbGet("SELECT COUNT(*) as c FROM orders WHERE store_id = ? AND created_at >= DATE('now','start of month')", [storeId])
-      if (count?.c >= limits.maxOrdersMonth) {
+      const count = ordersRepository.count(storeId, "created_at >= DATE('now','start of month')")
+      if (count >= limits.maxOrdersMonth) {
         res.status(403).json({ error: `Limite de ${limits.maxOrdersMonth} pedidos/mês atingido. Atualize seu plano.`, limitType: 'orders' })
         return
       }
     } else if (resource === 'users') {
-      const count = dbGet('SELECT COUNT(*) as c FROM users WHERE store_id = ?', [storeId])
-      if (count?.c >= limits.maxUsers) {
+      const count = countUsersInStore(storeId)
+      if (count >= limits.maxUsers) {
         res.status(403).json({ error: `Limite de ${limits.maxUsers} usuários atingido. Atualize seu plano.`, limitType: 'users' })
         return
       }

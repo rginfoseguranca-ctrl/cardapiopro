@@ -225,3 +225,21 @@ Sempre que implementar uma funcionalidade, ela DEVE funcionar em:
 - Server: 104/104 testes (14 arquivos; +7 novos de auditoria)
 - `npx tsc --noEmit` limpo em server/, client/ e desktop/
 - Próximas fases (futuras): 2.3/2.4 → 5 (testes) → 6 (limpeza)
+
+### 2026-08-02 — Sessão 9: Fase 2.3/2.4 concluída + último legado de produção migrado (middleware.ts)
+
+**Situação da Fase 2.3/2.4 (mapeada com subagente explore):**
+- As 39 rotas já estavam migradas para repositories/services nos commits `3cd78ff` (12 triviais), `31d2170` (clientes/marketing), `da26ac0` (financeiras), `5815556` (logística/estoque) e `ce5fb35` (finais) — feitos entre as sessões 6 e 7, mas não registrados no AGENTS.md
+- `storeId(req)`/`param(req, name)` estão **duplicados** localmente em ~25 rotas (candidato à centralização na Fase 6); SQL cru restante segue o padrão `.raw(storeId, ...)` escopado (correto)
+
+**Desta sessão — `server/src/middleware.ts` migrado (último acesso legado em produção):**
+- Removido `import { dbGet, dbRun } from './database'`
+- `resolveStoreScope`: `dbGet('SELECT id FROM stores WHERE slug = ?')` → `findStoreBySlug(slug)` (`repositories/fixtures`)
+- `planLimitMiddleware`: `dbGet` de subscription → `findSubscriptionByStore()`; contagens → `productsRepository.count(storeId)`, `ordersRepository.count(storeId, "created_at >= DATE('now','start of month')")` e `countUsersInStore(storeId)` (`repositories/global`) — comportamento idêntico, agora com tipos e sem SQL cru
+- Resultado: **nenhum código de produção usa mais `dbAll/dbGet/dbRun`** — restam apenas o `database.ts` (aliases internos + migrations/seed) e os `__tests__/*` (setup/teardown)
+- Sem dependência circular: repositories não importam `middleware` (só `db.ts` → `../database`)
+
+**Verificação final (tudo verde):**
+- Server: 104/104 testes (14 arquivos)
+- `npx tsc --noEmit` limpo em server/
+- Próximas fases (futuras): 5 (testes) → 6 (limpeza: aliases `dbAll/dbGet/dbRun` no `database.ts` + centralizar `storeId`/`param`)
