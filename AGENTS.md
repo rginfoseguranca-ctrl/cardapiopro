@@ -243,3 +243,25 @@ Sempre que implementar uma funcionalidade, ela DEVE funcionar em:
 - Server: 104/104 testes (14 arquivos)
 - `npx tsc --noEmit` limpo em server/
 - Próximas fases (futuras): 5 (testes) → 6 (limpeza: aliases `dbAll/dbGet/dbRun` no `database.ts` + centralizar `storeId`/`param`)
+
+### 2026-08-02 — Sessão 10: Fase 5 — testes de isolamento das rotas com agregações
+
+**Lacuna coberta:** repositórios já tinham `base.test.ts`/`isolation.test.ts` (isolamento do `createRepository`) e `catalog-routes.test.ts`/`audit-isolation.test.ts` cobriam products/complements/reviews. Faltava validar as rotas que usam **SQL cru `.raw()` com agregações** (SUM/COUNT/JOIN/JSON) — onde um `store_id = ?` esquecido vazaria dados entre lojas.
+
+**`server/src/__tests__/isolation-routes.test.ts` (novo, 11 testes):**
+- App de teste com `authMiddleware` + routers (mesmo padrão do `index.ts`); tokens JWT `role:'owner'` por loja; `requireFeature('fiado')` passa pois as lojas de teste não têm assinatura
+- **dashboard**: `/summary` (totalOrders/totalRevenue), `topProducts` (json_each de `items` não vaza produto da loja B) e `/recent-orders` isolados por JWT
+- **cash-register**: `GET /` balance/totalIn/totalOut e `POST /` gravam só na loja do token
+- **fiado**: `GET /` totalPending e lista isolados
+- **finance**: `/accounts`, `/transactions` (com JOIN de account/category) e `/summary` (totalIncome) isolados
+- **customers**: `GET /` e `/stats/segmentation` (total/highValue) isolados
+- Setup cria 2 lojas (`isroute-a/b`) com dados distintos e limpa em `beforeAll`/`afterAll`; seeds via repositories
+
+**Detalhes:**
+- `fiado.customer_id` é `NOT NULL` → seeds precisam de `customer_id` (mesmo o POST da rota aceitando sem)
+- `created_at` das tabelas usa `datetime('now')` → métricas de "hoje" do dashboard incluem os pedidos de teste (asserções comparam loja A vs B, não absolutos)
+
+**Verificação final (tudo verde):**
+- Server: 115/115 testes (15 arquivos; +11 novos de isolamento de rotas)
+- `npx tsc --noEmit` limpo em server/
+- Próxima fase (futura): 6 (limpeza: aliases `dbAll/dbGet/dbRun` no `database.ts` + centralizar `storeId`/`param`)
