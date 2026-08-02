@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
-import { dbGet, dbRun } from '../database'
+import { ordersRepository } from '../repositories/orders'
+import { paymentWebhooksRepository } from '../repositories/payment-webhooks'
 import { notifyOrder } from './notifications'
 import { v4 as uuid } from 'uuid'
 import { createChildLogger } from '../logger'
@@ -87,7 +88,7 @@ router.post('/:provider', async (req: Request, res: Response) => {
       return
     }
 
-    const order = dbGet('SELECT * FROM orders WHERE id = ?', [orderId])
+    const order = ordersRepository.findById(null, orderId)
     if (!order) {
       res.status(200).json({ received: true, processed: false })
       return
@@ -95,15 +96,14 @@ router.post('/:provider', async (req: Request, res: Response) => {
 
     const newPaymentStatus = status === 'approved' ? 'paid' :
                             status === 'rejected' ? 'failed' : 'pending'
+    const orderStore = (order as any).store_id || 'main'
 
-    dbRun('UPDATE orders SET payment_status = ?, updated_at = datetime("now") WHERE id = ?',
-      [newPaymentStatus, orderId])
+    ordersRepository.update(orderStore, orderId, { payment_status: newPaymentStatus })
 
     if (status === 'approved' && order.status === 'pending') {
-      dbRun('UPDATE orders SET status = ?, updated_at = datetime("now") WHERE id = ?',
-        ['confirmed', orderId])
+      ordersRepository.update(orderStore, orderId, { status: 'confirmed' })
 
-      const updatedOrder = dbGet('SELECT * FROM orders WHERE id = ?', [orderId])
+      const updatedOrder = ordersRepository.findById(orderStore, orderId)
       if (updatedOrder) {
         notifyOrder(orderId, {
           type: 'status_update',
@@ -113,9 +113,10 @@ router.post('/:provider', async (req: Request, res: Response) => {
       }
     }
 
-    dbRun(`INSERT INTO payment_webhooks (id, provider, order_id, payment_id, status, payload, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-      ['wh_' + uuid(), provider, orderId, paymentId, status, JSON.stringify(payload)])
+    paymentWebhooksRepository.insert(orderStore, {
+      id: 'wh_' + uuid(), provider, order_id: orderId, payment_id: paymentId,
+      status, payload: JSON.stringify(payload),
+    })
 
     res.json({ success: true })
   } catch (err) {

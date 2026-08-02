@@ -1,8 +1,7 @@
 import { Router, Request, Response } from 'express'
 import multer from 'multer'
 import path from 'path'
-import { v4 as uuid } from 'uuid'
-import { dbGet, dbRun } from '../database'
+import { companySettingsRepository, storesRepository } from '../repositories/fixtures'
 import { authMiddleware, AuthRequest } from '../middleware'
 
 const router = Router()
@@ -63,7 +62,7 @@ const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 }, fileFilt
 
 router.get('/', (req: Request, res: Response) => {
   const storeId = (req as AuthRequest).storeId || (req.query.storeId as string) || 'main'
-  const settings = dbGet('SELECT * FROM company_settings WHERE id = ?', [storeId])
+  const settings = companySettingsRepository.findById(null, storeId)
   if (!settings) {
     res.json({
       storeName: 'Minha Loja', storeIcon: '🍔',
@@ -77,7 +76,7 @@ router.get('/', (req: Request, res: Response) => {
   }
   let openingHours = {}
   try { openingHours = JSON.parse(settings.opening_hours || '{}') } catch { /* ignore */ }
-  const store = dbGet('SELECT slug FROM stores WHERE id = ?', [storeId])
+  const store = storesRepository.findById(null, storeId)
   res.json({
     storeName: settings.store_name,
     storeIcon: settings.store_icon,
@@ -102,39 +101,24 @@ router.get('/', (req: Request, res: Response) => {
 
 router.put('/', authMiddleware, (req: Request, res: Response) => {
   const storeId = (req as AuthRequest).storeId || 'main'
-  const mapping: Record<string, [string, any?]> = {
-    storeName: ['store_name'], storeIcon: ['store_icon'], primaryColor: ['primary_color'],
-    primaryDark: ['primary_dark'], paymentPixKey: ['payment_pix_key'],
-    paymentPixName: ['payment_pix_name'], paymentCardInfo: ['payment_card_info'],
-    paymentCashInfo: ['payment_cash_info'], footerText: ['footer_text'],
-    whatsapp: ['whatsapp'], deliveryFee: ['delivery_fee'], freeDeliveryFrom: ['free_delivery_from'],
-    logoUrl: ['logo_url'],
-    avisos: ['avisos', (v: any) => JSON.stringify(v)],
+  const mapping: Record<string, string> = {
+    storeName: 'store_name', storeIcon: 'store_icon', primaryColor: 'primary_color',
+    primaryDark: 'primary_dark', paymentPixKey: 'payment_pix_key',
+    paymentPixName: 'payment_pix_name', paymentCardInfo: 'payment_card_info',
+    paymentCashInfo: 'payment_cash_info', footerText: 'footer_text',
+    whatsapp: 'whatsapp', deliveryFee: 'delivery_fee', freeDeliveryFrom: 'free_delivery_from',
+    logoUrl: 'logo_url',
   }
-  const fields: string[] = []
-  const values: any[] = []
-  for (const [key, [col, transform]] of Object.entries(mapping)) {
-    if (req.body[key] !== undefined) {
-      fields.push(`${col} = ?`)
-      values.push(transform ? transform(req.body[key]) : req.body[key])
-    }
+  const patch: Record<string, any> = {}
+  for (const [key, col] of Object.entries(mapping)) {
+    if (req.body[key] !== undefined) patch[col] = req.body[key]
   }
-  if (req.body.schedulingEnabled !== undefined) {
-    fields.push('scheduling_enabled = ?')
-    values.push(req.body.schedulingEnabled ? 1 : 0)
-  }
-  if (req.body.isOpen !== undefined) {
-    fields.push('is_open = ?')
-    values.push(req.body.isOpen ? 1 : 0)
-  }
-  if (req.body.openingHours !== undefined) {
-    fields.push('opening_hours = ?')
-    values.push(JSON.stringify(req.body.openingHours))
-  }
-  if (fields.length === 0) { res.json({ success: true }); return }
-  fields.push("updated_at = datetime('now')")
-  values.push(storeId)
-  dbRun(`UPDATE company_settings SET ${fields.join(', ')} WHERE id = ?`, values)
+  if (req.body.avisos !== undefined) patch.avisos = JSON.stringify(req.body.avisos)
+  if (req.body.schedulingEnabled !== undefined) patch.scheduling_enabled = req.body.schedulingEnabled ? 1 : 0
+  if (req.body.isOpen !== undefined) patch.is_open = req.body.isOpen ? 1 : 0
+  if (req.body.openingHours !== undefined) patch.opening_hours = JSON.stringify(req.body.openingHours)
+  patch.updated_at = new Date().toISOString()
+  companySettingsRepository.update(null, storeId, patch)
   res.json({ success: true })
 })
 
@@ -142,7 +126,7 @@ router.put('/', authMiddleware, (req: Request, res: Response) => {
 router.get('/pix/:amount/:orderId', (req: Request, res: Response) => {
   const amount = parseFloat(Array.isArray(req.params.amount) ? req.params.amount[0] : req.params.amount)
   const orderId = Array.isArray(req.params.orderId) ? req.params.orderId[0] : req.params.orderId
-  const settings = dbGet('SELECT * FROM company_settings WHERE id = ?', [(req as AuthRequest).storeId || 'main'])
+  const settings = companySettingsRepository.findById(null, (req as AuthRequest).storeId || 'main')
   
   if (!settings || !settings.payment_pix_key) {
     res.status(400).json({ error: 'PIX não configurado' })
@@ -168,7 +152,7 @@ router.get('/pix/:amount/:orderId', (req: Request, res: Response) => {
 router.post('/logo', authMiddleware, upload.single('logo'), (req: Request, res: Response) => {
   if (!req.file) { res.status(400).json({ error: 'Nenhuma imagem enviada' }); return }
   const logoUrl = `/uploads/${req.file.filename}`
-  dbRun("UPDATE company_settings SET logo_url = ?, updated_at = datetime('now') WHERE id = ?", [logoUrl, (req as AuthRequest).storeId || 'main'])
+  companySettingsRepository.update(null, (req as AuthRequest).storeId || 'main', { logo_url: logoUrl })
   res.json({ logoUrl })
 })
 

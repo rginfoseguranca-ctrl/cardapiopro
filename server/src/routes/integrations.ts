@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express'
-import { dbAll, dbGet, dbRun } from '../database'
+import { storeSettingsRepository, setStoreSetting } from '../repositories/fixtures'
+import { ordersRepository } from '../repositories/orders'
+import { AuthRequest } from '../middleware'
 import { v4 as uuid } from 'uuid'
 
 interface IntegrationConfig {
@@ -107,9 +109,15 @@ const integrationDefs: IntegrationConfig[] = [
 // Admin router - protected by authMiddleware in index.ts
 const adminRouter = Router()
 
-adminRouter.get('/', (_req: Request, res: Response) => {
+adminRouter.get('/', (req: Request, res: Response) => {
+  const storeId = (req as AuthRequest).storeId || 'main'
   const allKeys = integrationDefs.flatMap(i => i.fields.map(f => f.key))
-  const rows = dbAll(`SELECT * FROM store_settings WHERE key IN (${allKeys.map(() => '?').join(',')})`, allKeys)
+  const placeholders = allKeys.map(() => '?').join(',')
+  const rows = storeSettingsRepository.raw(
+    storeId,
+    `SELECT * FROM store_settings WHERE key IN (${placeholders}) AND store_id = ?`,
+    [...allKeys, storeId]
+  )
   const values: Record<string, string> = {}
   for (const row of rows) values[row.key] = row.value
 
@@ -133,7 +141,7 @@ adminRouter.get('/', (_req: Request, res: Response) => {
 adminRouter.post('/', (req: Request, res: Response) => {
   const { key, value } = req.body
   if (!key) { res.status(400).json({ error: 'Chave obrigatória' }); return }
-  dbRun("INSERT OR REPLACE INTO store_settings (key, value) VALUES (?, ?)", [key, String(value)])
+  setStoreSetting((req as AuthRequest).storeId || 'main', key, String(value))
   res.json({ key, value })
 })
 
@@ -151,11 +159,19 @@ webhookRouter.post('/ifood/webhook', (req: Request, res: Response) => {
   if (event === 'order.created') {
     const { id, customer, items, total, deliveryAddress } = payload
     const orderId = uuid()
-    dbRun(`INSERT INTO orders (id, customer_name, customer_phone, items, subtotal, total, payment_method, payment_status, status, delivery_type, delivery_address, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [orderId, customer?.name || 'iFood', customer?.phone || '00000000000',
-        JSON.stringify(items.map((i: any) => ({ productId: i.id, productName: i.name, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice }))),
-        total, total, 'pix', 'paid', 'pending', 'delivery', deliveryAddress || ''])
+    ordersRepository.insert('main', {
+      id: orderId,
+      customer_name: customer?.name || 'iFood',
+      customer_phone: customer?.phone || '00000000000',
+      items: JSON.stringify(items.map((i: any) => ({ productId: i.id, productName: i.name, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice }))),
+      subtotal: total,
+      total,
+      payment_method: 'pix',
+      payment_status: 'paid',
+      status: 'pending',
+      delivery_type: 'delivery',
+      delivery_address: deliveryAddress || '',
+    })
   }
 
   res.json({ received: true })

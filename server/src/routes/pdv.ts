@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express'
-import { dbAll, dbGet } from '../database'
+import { categoriesRepository } from '../repositories/categories'
+import { listCatalogProducts } from '../repositories/products'
+import { complementGroupsRepository, complementsRepository } from '../repositories/complements'
+import { customersRepository } from '../repositories/customers'
 import { authMiddleware, AuthRequest } from '../middleware'
 
 function mapGroup(g: any) {
@@ -32,18 +35,16 @@ const router = Router()
 router.get('/products', authMiddleware, (req: Request, res: Response) => {
   const storeId = (req as AuthRequest).storeId || 'main'
 
-  const categories = dbAll('SELECT * FROM categories WHERE is_active = 1 ORDER BY "order"')
-  const products = dbAll(`SELECT p.*, c.name as category_name, c.icon as category_icon
-    FROM products p LEFT JOIN categories c ON p.category_id = c.id
-    WHERE p.is_available = 1 ORDER BY c."order", p.name`)
+  const categories = categoriesRepository.findAll(storeId, 'is_active = 1', [], '"order"')
+  const products = listCatalogProducts(storeId, { availableOnly: true, leftJoin: true })
 
   const productIds = products.map((p: any) => p.id).filter(Boolean)
   const groups: any[] = productIds.length > 0
-    ? dbAll(`SELECT * FROM complement_groups WHERE product_id IN (${productIds.map(() => '?').join(',')})`, productIds)
+    ? complementGroupsRepository.findAll(storeId, `product_id IN (${productIds.map(() => '?').join(',')})`, productIds)
     : []
   const groupIds = groups.map((g: any) => g.id).filter(Boolean)
   const items: any[] = groupIds.length > 0
-    ? dbAll(`SELECT * FROM complements WHERE group_id IN (${groupIds.map(() => '?').join(',')}) AND is_available = 1`, groupIds)
+    ? complementsRepository.findAll(storeId, `group_id IN (${groupIds.map(() => '?').join(',')}) AND is_available = 1`, groupIds)
     : []
 
   const complementsByProduct: Record<string, any[]> = {}
@@ -62,9 +63,11 @@ router.get('/customers', authMiddleware, (req: Request, res: Response) => {
   const q = (req.query.q as string || '').trim()
   const storeId = (req as AuthRequest).storeId || 'main'
   if (!q) { res.json([]); return }
-  const results = dbAll(
+  const like = `%${q}%`
+  const results = customersRepository.raw(
+    storeId,
     `SELECT id, name, phone FROM customers WHERE store_id = ? AND (name LIKE ? OR phone LIKE ?) LIMIT 20`,
-    [storeId, `%${q}%`, `%${q}%`]
+    [storeId, like, like]
   )
   res.json(results)
 })

@@ -14,7 +14,7 @@ export const companySettingsRepository: BaseRepository<CompanySettings> = create
     'store_name', 'store_icon', 'primary_color', 'primary_dark', 'payment_pix_key',
     'payment_pix_name', 'payment_card_info', 'payment_cash_info', 'footer_text',
     'scheduling_enabled', 'logo_url', 'whatsapp', 'opening_hours', 'delivery_fee',
-    'free_delivery_from', 'avisos', 'is_open',
+    'free_delivery_from', 'avisos', 'is_open', 'updated_at',
   ],
 })
 
@@ -40,7 +40,7 @@ export function setStoreSetting(storeId: string | null, key: string, value: stri
 // Tabela `stores` (multi-loja, sem escopo) — usada para resolução de slug
 export const storesRepository: BaseRepository<Store> = createRepository<Store>('stores', {
   scoped: false,
-  columns: ['name', 'slug', 'phone', 'address', 'is_active'],
+  columns: ['name', 'slug', 'phone', 'address', 'primary_color', 'is_active'],
 })
 
 export function findStoreBySlug(slug: string): Store | null {

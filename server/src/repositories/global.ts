@@ -132,3 +132,29 @@ export function createPasswordReset(userId: string, token: string, expiresAt: st
 export function markPasswordResetUsed(id: string): void {
   g.run('UPDATE password_resets SET used = 1 WHERE id = ?', [id])
 }
+
+// ─── SaaS admin (super-admin, global) ───
+
+export function countTable(table: string, clause = ''): number {
+  const row = g.get(
+    `SELECT COUNT(*) AS c FROM "${table}"${clause ? ' WHERE ' + clause : ''}`
+  )
+  return Number(row?.c ?? 0)
+}
+
+export function deleteByStore(table: string, storeId: string): void {
+  if (!storeId) return
+  g.run(`DELETE FROM "${table}" WHERE store_id = ?`, [storeId])
+}
+
+export function listStoresWithStats(): any[] {
+  return g.all(`
+    SELECT s.*, 
+      (SELECT COUNT(*) FROM users WHERE store_id = s.id) as user_count,
+      (SELECT COUNT(*) FROM orders WHERE store_id = s.id) as order_count,
+      (SELECT status FROM subscriptions WHERE store_id = s.id ORDER BY created_at DESC LIMIT 1) as sub_status,
+      (SELECT plan FROM subscriptions WHERE store_id = s.id ORDER BY created_at DESC LIMIT 1) as sub_plan
+    FROM stores s
+    ORDER BY s.created_at DESC
+  `)
+}
