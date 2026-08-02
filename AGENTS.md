@@ -185,4 +185,20 @@ Sempre que implementar uma funcionalidade, ela DEVE funcionar em:
 - Server: 111/111 testes (13 arquivos; +10 novos de auth)
 - `npx tsc --noEmit` limpo em server/, client/ e desktop/
 - `npx oxlint` em client/: apenas os 2 warnings pré-existentes
-- Próxima fase (futura): 2.3/2.4 → 3 (auditoria) → 4 (deletar `store-scope.ts`) → 5 (testes) → 6 (limpeza)
+- Próxima fase (futura): 2.3/2.4 → 3 (auditoria) → 5 (testes) → 6 (limpeza)
+
+### 2026-08-02 — Sessão 7: `store-scope.ts` deletado (Fase 4 concluída)
+
+**Fase 4 — Fim do reescritor de SQL por regex:**
+- `server/src/store-scope.ts` **deletado** (214 linhas) — o isolamento por loja agora é 100% via repositories com `storeId` explícito; nenhuma rota usa mais `dbAll/dbGet/dbRun`
+- `server/src/database.ts`: `dbAll/dbGet/dbRun` viram aliases de `rawAll/rawGet/rawRun` (sem reescrita); removido import de `applyStoreScope/getStoreScope`; seed/migrations continuam válidos pois as colunas têm `DEFAULT 'main'`
+- `server/src/middleware.ts`: removido `runWithStoreScope` de `authMiddleware` e `resolveStoreScope` — o middleware apenas resolve `req.storeId`/`req.user`; a decisão de escopo (global p/ super_admin vs loja) fica nas rotas (padrão `storeScope()` do `dashboard.ts`)
+- `server/src/middleware/plan-gate.ts`: `dbGet` → `findSubscriptionByStore()` de `repositories/global`
+- `server/src/__tests__/store-scope.test.ts` deletado (testava o reescritor)
+- `server/src/__tests__/resolve-store.test.ts`: reescrito sem `runWithStoreScope` — INSERTs com `store_id` explícito; handler simula rota migrada (`super_admin` → `sid null`, lojista → `storeId`); comportamento atualizado: sem contexto/slug desconhecido a rota migrada cai em `'main'` (não global) — já previsto na Sessão 5
+- Commit `5c84220` — `refactor(server): remove store-scope em favor de repositories`
+
+**Verificação final (tudo verde):**
+- Server: 97/97 testes (13 arquivos; store-scope.test removido)
+- `npx tsc --noEmit` limpo em server/, client/ e desktop/
+- Próximas fases (futuras): 2.3/2.4 → 3 (auditoria) → 5 (testes) → 6 (limpeza)
