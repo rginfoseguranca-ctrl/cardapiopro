@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { dbRun, dbGet } from '../database'
+import { rawRun, rawGet } from '../database'
 
 beforeAll(async () => {
   process.env.JWT_SECRET = 'test-secret'

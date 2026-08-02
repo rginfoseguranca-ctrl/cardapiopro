@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initDatabase, dbGet, dbRun } from '../database'
+import { initDatabase, rawGet, rawRun } from '../database'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { v4 as uuid } from 'uuid'
@@ -19,17 +19,17 @@ describe('Auth', () => {
   it('creates user with hashed password', async () => {
     userId = 'user_' + uuid()
     const hash = await bcrypt.hash(testPassword, 10)
-    dbRun(
+    rawRun(
       'INSERT INTO users (id, name, email, password, role, store_id) VALUES (?, ?, ?, ?, ?, ?)',
       [userId, 'Test User', testEmail, hash, 'admin', 'main']
     )
-    const user = dbGet('SELECT * FROM users WHERE id = ?', [userId])
+    const user = rawGet('SELECT * FROM users WHERE id = ?', [userId])
     expect(user).not.toBeNull()
     expect(user.email).toBe(testEmail)
   })
 
   it('verifies password correctly', async () => {
-    const user = dbGet('SELECT * FROM users WHERE id = ?', [userId])
+    const user = rawGet('SELECT * FROM users WHERE id = ?', [userId])
     const valid = await bcrypt.compare(testPassword, user.password)
     expect(valid).toBe(true)
 
@@ -61,6 +61,6 @@ describe('Auth', () => {
   })
 
   it('cleans up test data', () => {
-    dbRun('DELETE FROM users WHERE id = ?', [userId])
+    rawRun('DELETE FROM users WHERE id = ?', [userId])
   })
 })

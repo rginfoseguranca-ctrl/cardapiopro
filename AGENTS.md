@@ -288,3 +288,14 @@ Sempre que implementar uma funcionalidade, ela DEVE funcionar em:
 - Server: 115/115 testes (15 arquivos — sem testes novos, refatoração puramente estrutural)
 - `npx tsc --noEmit` limpo em server/
 - Próximo item da Fase 6 (futuro): remover aliases `dbAll/dbGet/dbRun` do `database.ts` (linhas ~604–613; export na ~769; usados só internamente e em testes)
+
+**Fim da Fase 6 — aliases `dbAll`/`dbGet`/`dbRun` removidos:**
+- `server/src/database.ts`: bloco de aliases (604–615) deletado; usos internos migrados para `rawAll`/`rawGet`/`rawRun` (`addColumnIfMissing`, `runMigrations`, `rebuildTableWithStoreUnique`, `ensureStoreSettingsCompositeKey`, `seedData`); export agora `export { rawAll, rawGet, rawRun }`; `db.run(` diretos (transações/DDL) **não** foram tocados
+- 9 arquivos de teste migrados para os nomes `raw*` (imports + usos): `audit-isolation`, `auth-routes`, `auth`, `billing`, `catalog-routes`, `database`, `isolation-routes`, `planGate`, `resolve-store`
+- Resultado: **nenhuma referência a `dbAll`/`dbGet`/`dbRun` em todo `server/src`** — só os `raw*` reais (definidos em `database.ts`, usados pelos repositories via `repositories/db.ts`)
+- Fase 6 concluída (Fase 4 + 6 já feitas; fases 2.3/2.4, 3 e 5 concluídas nas sessões 9/10 e 8)
+
+**Verificação final (tudo verde):**
+- Server: 115/115 testes (15 arquivos)
+- `npx tsc --noEmit` limpo em server/
+- Refatoração backend (Fases 1→6) concluída: `server/` sem reescritor SQL, sem aliases legados, sem SQL cru fora dos repositories/services/helpers

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import request from 'supertest'
-import { initDatabase, dbRun } from '../database'
+import { initDatabase, rawRun } from '../database'
 import { setStoreSetting, getStoreSetting } from '../repositories/fixtures'
 import { tablesRepository } from '../repositories/tables'
 import { couponsRepository } from '../repositories/coupons'
@@ -22,18 +22,18 @@ let app: express.Express
 beforeAll(async () => {
   await initDatabase()
   for (const s of [AUDIT_A, AUDIT_B]) {
-    dbRun(`DELETE FROM store_settings WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM tables WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM coupons WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM reviews WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM complement_groups WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM complements WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM products WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM categories WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM store_settings WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM tables WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM coupons WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM reviews WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM complement_groups WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM complements WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM products WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM categories WHERE store_id = ?`, [s])
   }
-  dbRun('DELETE FROM stores WHERE id IN (?, ?)', [AUDIT_A, AUDIT_B])
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [AUDIT_A, 'Loja A', SLUG_A])
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [AUDIT_B, 'Loja B', SLUG_B])
+  rawRun('DELETE FROM stores WHERE id IN (?, ?)', [AUDIT_A, AUDIT_B])
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [AUDIT_A, 'Loja A', SLUG_A])
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [AUDIT_B, 'Loja B', SLUG_B])
 
   const { resolveStoreScope } = await import('../middleware')
   const reviewsRouter = (await import('../routes/reviews')).default
@@ -45,16 +45,16 @@ beforeAll(async () => {
 
 afterAll(() => {
   for (const s of [AUDIT_A, AUDIT_B]) {
-    dbRun(`DELETE FROM store_settings WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM tables WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM coupons WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM reviews WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM complement_groups WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM complements WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM products WHERE store_id = ?`, [s])
-    dbRun(`DELETE FROM categories WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM store_settings WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM tables WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM coupons WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM reviews WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM complement_groups WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM complements WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM products WHERE store_id = ?`, [s])
+    rawRun(`DELETE FROM categories WHERE store_id = ?`, [s])
   }
-  dbRun('DELETE FROM stores WHERE id IN (?, ?)', [AUDIT_A, AUDIT_B])
+  rawRun('DELETE FROM stores WHERE id IN (?, ?)', [AUDIT_A, AUDIT_B])
 })
 
 describe('Auditoria de isolamento', () => {

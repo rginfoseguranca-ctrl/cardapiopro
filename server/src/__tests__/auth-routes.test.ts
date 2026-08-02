@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import request from 'supertest'
-import { initDatabase, dbRun, dbGet } from '../database'
+import { initDatabase, rawRun, rawGet } from '../database'
 import authRouter from '../routes/auth'
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret'
@@ -26,17 +26,17 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  const users = dbGet('SELECT id, store_id FROM users WHERE email IN (?, ?)', [EMAIL, inviteEmail])
+  const users = rawGet('SELECT id, store_id FROM users WHERE email IN (?, ?)', [EMAIL, inviteEmail])
   const ids = Array.isArray(users) ? users : users ? [users] : []
   for (const u of ids) {
-    dbRun('DELETE FROM password_resets WHERE user_id = ?', [u.id])
-    dbRun('DELETE FROM users WHERE id = ?', [u.id])
+    rawRun('DELETE FROM password_resets WHERE user_id = ?', [u.id])
+    rawRun('DELETE FROM users WHERE id = ?', [u.id])
   }
   const stores = [storeId, ...(Array.isArray(users) ? users.map((u: any) => u.store_id) : users ? [users.store_id] : [])]
   for (const s of new Set(stores.filter(Boolean))) {
-    dbRun('DELETE FROM subscriptions WHERE store_id = ?', [s])
-    dbRun('DELETE FROM company_settings WHERE id = ?', [s])
-    dbRun('DELETE FROM stores WHERE id = ?', [s])
+    rawRun('DELETE FROM subscriptions WHERE store_id = ?', [s])
+    rawRun('DELETE FROM company_settings WHERE id = ?', [s])
+    rawRun('DELETE FROM stores WHERE id = ?', [s])
   }
 })
 
@@ -54,17 +54,17 @@ describe('registro e login via repositories', () => {
     storeId = res.body.store.id
     ownerToken = res.body.token
 
-    const store = dbGet('SELECT * FROM stores WHERE id = ?', [storeId])
+    const store = rawGet('SELECT * FROM stores WHERE id = ?', [storeId])
     expect(store).toBeTruthy()
 
-    const settings = dbGet('SELECT * FROM company_settings WHERE id = ?', [storeId])
+    const settings = rawGet('SELECT * FROM company_settings WHERE id = ?', [storeId])
     expect(settings?.store_name).toBe(STORE_NAME)
 
-    const sub = dbGet('SELECT * FROM subscriptions WHERE store_id = ?', [storeId])
+    const sub = rawGet('SELECT * FROM subscriptions WHERE store_id = ?', [storeId])
     expect(sub?.plan).toBe('premium')
     expect(sub?.status).toBe('trialing')
 
-    const user = dbGet('SELECT * FROM users WHERE email = ?', [EMAIL])
+    const user = rawGet('SELECT * FROM users WHERE email = ?', [EMAIL])
     expect(user?.role).toBe('owner')
     expect(user?.store_id).toBe(storeId)
   })
@@ -131,7 +131,7 @@ describe('convite e recuperação de senha', () => {
     expect(res.status).toBe(201)
     expect(res.body.id).toBeTruthy()
 
-    const user = dbGet('SELECT * FROM users WHERE email = ?', [inviteEmail])
+    const user = rawGet('SELECT * FROM users WHERE email = ?', [inviteEmail])
     expect(user?.role).toBe('staff')
     expect(user?.store_id).toBe(storeId)
     expect(user?.must_change_password).toBe(1)
@@ -150,7 +150,7 @@ describe('convite e recuperação de senha', () => {
       .send({ email: EMAIL })
     expect(forgot.status).toBe(200)
 
-    const reset = dbGet('SELECT id, token, expires_at FROM password_resets WHERE user_id = (SELECT id FROM users WHERE email = ?) ORDER BY created_at DESC LIMIT 1', [EMAIL])
+    const reset = rawGet('SELECT id, token, expires_at FROM password_resets WHERE user_id = (SELECT id FROM users WHERE email = ?) ORDER BY created_at DESC LIMIT 1', [EMAIL])
     expect(reset).toBeTruthy()
 
     const change = await request(app)

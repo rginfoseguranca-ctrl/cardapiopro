@@ -601,19 +601,6 @@ function rawRun(sql: string, params?: any[]): void {
   saveDb()
 }
 
-function dbAll(sql: string, params?: any[]): any[] {
-  return rawAll(sql, params)
-}
-
-function dbGet(sql: string, params?: any[]): any {
-  const results = dbAll(sql, params)
-  return results.length > 0 ? results[0] : null
-}
-
-function dbRun(sql: string, params?: any[]): void {
-  rawRun(sql, params)
-}
-
 function hasColumn(table: string, column: string): boolean {
   try {
     const stmt = db.prepare(`PRAGMA table_info(${table})`)
@@ -629,7 +616,7 @@ function hasColumn(table: string, column: string): boolean {
 
 function addColumnIfMissing(table: string, column: string, def: string): void {
   if (!hasColumn(table, column)) {
-    try { dbRun(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`) } catch {}
+    try { rawRun(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`) } catch {}
   }
 }
 
@@ -656,7 +643,7 @@ function runMigrations(): void {
     )
   `)
   addColumnIfMissing('orders', 'store_id', "TEXT DEFAULT ''")
-  dbRun(`UPDATE orders SET store_id = 'main' WHERE store_id = ''`)
+  rawRun(`UPDATE orders SET store_id = 'main' WHERE store_id = ''`)
   addColumnIfMissing('orders', 'delivery_fee', 'REAL DEFAULT 0')
   addColumnIfMissing('users', 'must_change_password', 'INTEGER DEFAULT 0')
   addColumnIfMissing('users', 'store_id', "TEXT DEFAULT 'main'")
@@ -700,7 +687,7 @@ function runMigrations(): void {
   rebuildTableWithStoreUnique('tables', 'number')
   rebuildTableWithStoreUnique('coupons', 'code')
   rebuildTableWithStoreUnique('blog_posts', 'slug')
-  dbRun("UPDATE users SET role = 'super_admin' WHERE email = 'admin@local' AND role != 'super_admin'")
+  rawRun("UPDATE users SET role = 'super_admin' WHERE email = 'admin@local' AND role != 'super_admin'")
 }
 
 // R5 (auditoria): constraints UNIQUE globais impediam lojas diferentes de usar os
@@ -708,7 +695,7 @@ function runMigrations(): void {
 // com UNIQUE composto (coluna, store_id) preservando colunas/dados existentes.
 function rebuildTableWithStoreUnique(table: string, uniqueCol: string): void {
   try {
-    const meta = dbGet("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", [table])
+    const meta = rawGet("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", [table])
     const sql = meta?.sql || ''
     if (!/\bUNIQUE\b/.test(sql) || /UNIQUE\s*\([^)]*store_id/.test(sql)) return
     const cols = rawAll(`PRAGMA table_info(${table})`) as any[]
@@ -744,7 +731,7 @@ function rebuildTableWithStoreUnique(table: string, uniqueCol: string): void {
 // cruzada entre lojas no INSERT OR REPLACE. Recria a tabela com PK composta (key, store_id).
 function ensureStoreSettingsCompositeKey(): void {
   try {
-    const meta = dbGet("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'store_settings'")
+    const meta = rawGet("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'store_settings'")
     const legacyPk = /key\s+TEXT\s+PRIMARY KEY/i.test(meta?.sql || '')
     if (!legacyPk) return
     db.run('BEGIN')
@@ -766,10 +753,10 @@ function ensureStoreSettingsCompositeKey(): void {
   }
 }
 
-export { dbAll, dbGet, dbRun, rawAll, rawGet, rawRun }
+export { rawAll, rawGet, rawRun }
 
 function seedData() {
-  const result = dbGet('SELECT COUNT(*) as count FROM categories')
+  const result = rawGet('SELECT COUNT(*) as count FROM categories')
   if (result.count > 0) return
 
   const categories = [
@@ -818,24 +805,24 @@ function seedData() {
   ]
 
   for (const c of categories) {
-    dbRun('INSERT INTO categories (id, name, icon, "order") VALUES (?, ?, ?, ?)', [c.id, c.name, c.icon, c.order])
+    rawRun('INSERT INTO categories (id, name, icon, "order") VALUES (?, ?, ?, ?)', [c.id, c.name, c.icon, c.order])
   }
   for (const p of products) {
-    dbRun('INSERT INTO products (id, name, description, price, price_promotional, image, category_id, is_highlighted, is_available, ingredients) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    rawRun('INSERT INTO products (id, name, description, price, price_promotional, image, category_id, is_highlighted, is_available, ingredients) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [p.id, p.name, p.desc, p.price, null, p.img || '', p.cat, p.hl, 1, JSON.stringify(p.ings)])
   }
 
-  const adminExists = dbGet('SELECT id FROM users WHERE email = ?', ['admin@local'])
+  const adminExists = rawGet('SELECT id FROM users WHERE email = ?', ['admin@local'])
   if (!adminExists) {
     const hash = bcrypt.hashSync('admin123', 10)
-    dbRun('INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)',
+    rawRun('INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)',
       [uuid(), 'Administrador', 'admin@local', hash, 'super_admin'])
     console.log(`[SEED] Admin criado: admin@local / admin123`)
   }
 
-  const storeExists = dbGet('SELECT id FROM company_settings WHERE id = ?', ['main'])
+  const storeExists = rawGet('SELECT id FROM company_settings WHERE id = ?', ['main'])
   if (!storeExists) {
-    dbRun(`INSERT INTO company_settings (id, store_name, store_icon, primary_color, primary_dark, payment_pix_key, payment_pix_name, payment_card_info, payment_cash_info, footer_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    rawRun(`INSERT INTO company_settings (id, store_name, store_icon, primary_color, primary_dark, payment_pix_key, payment_pix_name, payment_card_info, payment_cash_info, footer_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ['main', 'Minha Loja', '🍔', '#e74c3c', '#c0392b', '', '', 'Débito/Crédito', 'Dinheiro', ''])
   }
 }

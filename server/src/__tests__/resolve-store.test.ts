@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
-import { initDatabase, dbRun } from '../database'
+import { initDatabase, rawRun } from '../database'
 import { productsRepository } from '../repositories/products'
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret'
@@ -17,16 +17,16 @@ let app: express.Express
 beforeAll(async () => {
   await initDatabase()
 
-  dbRun('DELETE FROM products WHERE id IN (?, ?)', ['resolve-prod-a', 'resolve-prod-b'])
-  dbRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
+  rawRun('DELETE FROM products WHERE id IN (?, ?)', ['resolve-prod-a', 'resolve-prod-b'])
+  rawRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
 
   const { resolveStoreScope } = await import('../middleware')
 
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_A_ID, 'Loja A', STORE_A_SLUG])
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_B_ID, 'Loja B', STORE_B_SLUG])
-  dbRun('INSERT INTO products (id, name, description, price, category_id, store_id) VALUES (?, ?, ?, ?, ?, ?)',
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_A_ID, 'Loja A', STORE_A_SLUG])
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_B_ID, 'Loja B', STORE_B_SLUG])
+  rawRun('INSERT INTO products (id, name, description, price, category_id, store_id) VALUES (?, ?, ?, ?, ?, ?)',
     ['resolve-prod-a', 'Produto A', '', 5, 'cat1', STORE_A_ID])
-  dbRun('INSERT INTO products (id, name, description, price, category_id, store_id) VALUES (?, ?, ?, ?, ?, ?)',
+  rawRun('INSERT INTO products (id, name, description, price, category_id, store_id) VALUES (?, ?, ?, ?, ?, ?)',
     ['resolve-prod-b', 'Produto B', '', 7, 'cat1', STORE_B_ID])
 
   // Simula o comportamento de uma rota migrada (ex.: dashboard.ts): o middleware
@@ -42,10 +42,10 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  dbRun('DELETE FROM products WHERE id = ?', ['resolve-prod-a'])
-  dbRun('DELETE FROM products WHERE id = ?', ['resolve-prod-b'])
-  dbRun('DELETE FROM stores WHERE id = ?', [STORE_A_ID])
-  dbRun('DELETE FROM stores WHERE id = ?', [STORE_B_ID])
+  rawRun('DELETE FROM products WHERE id = ?', ['resolve-prod-a'])
+  rawRun('DELETE FROM products WHERE id = ?', ['resolve-prod-b'])
+  rawRun('DELETE FROM stores WHERE id = ?', [STORE_A_ID])
+  rawRun('DELETE FROM stores WHERE id = ?', [STORE_B_ID])
 })
 
 describe('resolveStoreScope', () => {

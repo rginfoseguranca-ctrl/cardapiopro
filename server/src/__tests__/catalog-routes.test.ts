@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
-import { initDatabase, dbRun } from '../database'
+import { initDatabase, rawRun } from '../database'
 import { resolveStoreScope, errorHandler } from '../middleware'
 import productsRouter from '../routes/products'
 import complementsRouter from '../routes/complements'
@@ -26,14 +26,14 @@ function token(storeId: string): string {
 beforeAll(async () => {
   await initDatabase()
 
-  dbRun('DELETE FROM products WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM categories WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM complement_groups WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM complements WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
+  rawRun('DELETE FROM products WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM categories WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM complement_groups WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM complements WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
 
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_A_ID, 'Loja A', SLUG_A])
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_B_ID, 'Loja B', SLUG_B])
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_A_ID, 'Loja A', SLUG_A])
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_B_ID, 'Loja B', SLUG_B])
 
   app = express()
   app.use(express.json())
@@ -55,11 +55,11 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  dbRun('DELETE FROM products WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM categories WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM complement_groups WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM complements WHERE id LIKE ?', [`${PREFIX}%`])
-  dbRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
+  rawRun('DELETE FROM products WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM categories WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM complement_groups WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM complements WHERE id LIKE ?', [`${PREFIX}%`])
+  rawRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
 })
 
 describe('rotas de catálogo (products) via service+repository', () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
-import { initDatabase, dbRun } from '../database'
+import { initDatabase, rawRun } from '../database'
 import { authMiddleware } from '../middleware'
 import { requireFeature } from '../middleware/plan-gate'
 import dashboardRouter from '../routes/dashboard'
@@ -32,22 +32,22 @@ function token(storeId: string): string {
 
 function clean() {
   for (const s of [STORE_A_ID, STORE_B_ID]) {
-    dbRun('DELETE FROM orders WHERE store_id = ?', [s])
-    dbRun('DELETE FROM customers WHERE store_id = ?', [s])
-    dbRun('DELETE FROM cash_register WHERE store_id = ?', [s])
-    dbRun('DELETE FROM fiado WHERE store_id = ?', [s])
-    dbRun('DELETE FROM financial_transactions WHERE store_id = ?', [s])
-    dbRun('DELETE FROM financial_categories WHERE store_id = ?', [s])
-    dbRun('DELETE FROM financial_accounts WHERE store_id = ?', [s])
+    rawRun('DELETE FROM orders WHERE store_id = ?', [s])
+    rawRun('DELETE FROM customers WHERE store_id = ?', [s])
+    rawRun('DELETE FROM cash_register WHERE store_id = ?', [s])
+    rawRun('DELETE FROM fiado WHERE store_id = ?', [s])
+    rawRun('DELETE FROM financial_transactions WHERE store_id = ?', [s])
+    rawRun('DELETE FROM financial_categories WHERE store_id = ?', [s])
+    rawRun('DELETE FROM financial_accounts WHERE store_id = ?', [s])
   }
-  dbRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
+  rawRun('DELETE FROM stores WHERE id IN (?, ?)', [STORE_A_ID, STORE_B_ID])
 }
 
 beforeAll(async () => {
   await initDatabase()
   clean()
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_A_ID, 'Loja A', SLUG_A])
-  dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_B_ID, 'Loja B', SLUG_B])
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_A_ID, 'Loja A', SLUG_A])
+  rawRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_B_ID, 'Loja B', SLUG_B])
 
   app = express()
   app.use(express.json())
