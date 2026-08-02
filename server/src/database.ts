@@ -4,7 +4,6 @@ import path from 'path'
 import bcrypt from 'bcrypt'
 import { v4 as uuid } from 'uuid'
 import crypto from 'crypto'
-import { applyStoreScope, getStoreScope } from './store-scope'
 
 const DB_PATH = path.join(__dirname, '..', '..', 'data', 'cardapio.db')
 
@@ -577,6 +576,8 @@ function initTables() {
 
 // Executa SQL sem reescrita de escopo (camada de repositories).
 // Os repositórios injetam store_id explicitamente como parâmetro.
+// NOTA: raw e db são aliases — o reescritor de escopo (store-scope) foi removido;
+// o isolamento por loja agora é garantido pelos repositories com storeId explícito.
 function rawAll(sql: string, params?: any[]): any[] {
   const stmt = db.prepare(sql)
   if (params) stmt.bind(params)
@@ -599,8 +600,7 @@ function rawRun(sql: string, params?: any[]): void {
 }
 
 function dbAll(sql: string, params?: any[]): any[] {
-  const scoped = applyStoreScope(sql, params ?? [], getStoreScope())
-  return rawAll(scoped ? scoped.sql : sql, scoped ? scoped.params : params)
+  return rawAll(sql, params)
 }
 
 function dbGet(sql: string, params?: any[]): any {
@@ -609,8 +609,7 @@ function dbGet(sql: string, params?: any[]): any {
 }
 
 function dbRun(sql: string, params?: any[]): void {
-  const scoped = applyStoreScope(sql, params ?? [], getStoreScope())
-  rawRun(scoped ? scoped.sql : sql, scoped ? scoped.params : params)
+  rawRun(sql, params)
 }
 
 function hasColumn(table: string, column: string): boolean {

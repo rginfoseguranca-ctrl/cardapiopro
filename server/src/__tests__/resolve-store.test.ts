@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
-import { initDatabase, dbGet, dbRun } from '../database'
-import { runWithStoreScope } from '../store-scope'
+import { initDatabase, dbRun } from '../database'
+import { productsRepository } from '../repositories/products'
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret'
 
@@ -24,19 +24,19 @@ beforeAll(async () => {
 
   dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_A_ID, 'Loja A', STORE_A_SLUG])
   dbRun('INSERT INTO stores (id, name, slug) VALUES (?, ?, ?)', [STORE_B_ID, 'Loja B', STORE_B_SLUG])
-  runWithStoreScope(STORE_A_ID, () => {
-    dbRun('INSERT INTO products (id, name, description, price, category_id) VALUES (?, ?, ?, ?, ?)',
-      ['resolve-prod-a', 'Produto A', '', 5, 'cat1'])
-  })
-  runWithStoreScope(STORE_B_ID, () => {
-    dbRun('INSERT INTO products (id, name, description, price, category_id) VALUES (?, ?, ?, ?, ?)',
-      ['resolve-prod-b', 'Produto B', '', 7, 'cat1'])
-  })
+  dbRun('INSERT INTO products (id, name, description, price, category_id, store_id) VALUES (?, ?, ?, ?, ?, ?)',
+    ['resolve-prod-a', 'Produto A', '', 5, 'cat1', STORE_A_ID])
+  dbRun('INSERT INTO products (id, name, description, price, category_id, store_id) VALUES (?, ?, ?, ?, ?, ?)',
+    ['resolve-prod-b', 'Produto B', '', 7, 'cat1', STORE_B_ID])
 
+  // Simula o comportamento de uma rota migrada (ex.: dashboard.ts): o middleware
+  // resolve req.storeId/req.user e a rota decide o escopo — super_admin opera
+  // global (null), lojistas ficam escopados ao storeId.
   app = express()
   app.use(resolveStoreScope)
   app.get('/test', (req: any, res: any) => {
-    const seesB = dbGet('SELECT name FROM products WHERE id = ?', ['resolve-prod-b'])
+    const sid = req.user?.role === 'super_admin' ? null : (req.storeId || 'main')
+    const seesB = productsRepository.findAll(sid, 'id = ?', ['resolve-prod-b'])[0]
     res.json({ storeId: req.storeId || null, seesB: seesB?.name || null })
   })
 })
@@ -49,10 +49,10 @@ afterAll(() => {
 })
 
 describe('resolveStoreScope', () => {
-  it('sem contexto fica global (storeId null)', async () => {
+  it('sem contexto deixa storeId null (rota migrada cai na loja main)', async () => {
     const res = await request(app).get('/test')
     expect(res.body.storeId).toBeNull()
-    expect(res.body.seesB).toBe('Produto B')
+    expect(res.body.seesB).toBeNull()
   })
 
   it('x-store-slug resolve a loja e escopa as leituras', async () => {
@@ -73,10 +73,10 @@ describe('resolveStoreScope', () => {
     expect(res.body.seesB).toBeNull()
   })
 
-  it('slug desconhecido fica global', async () => {
+  it('slug desconhecido deixa storeId null (rota migrada cai na loja main)', async () => {
     const res = await request(app).get('/test').set('x-store-slug', 'nao-existe')
     expect(res.body.storeId).toBeNull()
-    expect(res.body.seesB).toBe('Produto B')
+    expect(res.body.seesB).toBeNull()
   })
 
   it('JWT de lojista tem precedência sobre o slug header', async () => {

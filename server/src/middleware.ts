@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
 import path from 'path'
-import { runWithStoreScope } from './store-scope'
 import { dbGet, dbRun } from './database'
 
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -35,12 +34,9 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
       }
     }
 
-    // Super admin opera globalmente; lojistas ficam escopados à própria loja
-    if (decoded.role === 'super_admin') {
-      next()
-    } else {
-      runWithStoreScope(decoded.storeId || 'main', () => next())
-    }
+    // Super admin opera globalmente; lojistas ficam escopados à própria loja.
+    // O escopo agora é resolvido pelos repositories via req.storeId (sem reescritor SQL).
+    next()
   } catch {
     res.status(401).json({ error: 'Token inválido' })
   }
@@ -56,8 +52,8 @@ export function adminMiddleware(req: Request, res: Response, next: NextFunction)
 }
 
 // Resolves store context for public routes: valid JWT (non-blocking) wins, then
-// x-store-slug header, then store_slug/storeId query params. Leaves global (no scope)
-// when there is no context — writes default to the legacy 'main' store.
+// x-store-slug header, then store_slug/storeId query params. Leaves global when
+// there is no context — repositories default to the legacy 'main' store on writes.
 export function resolveStoreScope(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization
   if (auth) {
@@ -65,8 +61,7 @@ export function resolveStoreScope(req: Request, res: Response, next: NextFunctio
       const decoded = jwt.verify(auth.replace('Bearer ', ''), JWT_SECRET) as any
       ;(req as AuthRequest).user = decoded
       ;(req as AuthRequest).storeId = decoded.storeId || 'main'
-      if (decoded.role === 'super_admin') { next(); return }
-      runWithStoreScope(decoded.storeId || 'main', () => next())
+      next()
       return
     } catch {
       // Invalid token on a public route → treat as unauthenticated
@@ -78,7 +73,7 @@ export function resolveStoreScope(req: Request, res: Response, next: NextFunctio
     const store = dbGet('SELECT id FROM stores WHERE slug = ?', [slug])
     if (store) {
       ;(req as AuthRequest).storeId = store.id
-      runWithStoreScope(store.id, () => next())
+      next()
       return
     }
   }
@@ -86,7 +81,7 @@ export function resolveStoreScope(req: Request, res: Response, next: NextFunctio
   const storeId = (req.query.storeId as string)
   if (storeId) {
     ;(req as AuthRequest).storeId = storeId
-    runWithStoreScope(storeId, () => next())
+    next()
     return
   }
 

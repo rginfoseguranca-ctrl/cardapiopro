@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
-import { dbGet } from '../database'
 import { AuthRequest } from '../middleware'
+import { findSubscriptionByStore } from '../repositories/global'
 
 const PLAN_FEATURES: Record<string, string[]> = {
   start: ['cardapio', 'orders', 'customers', 'coupons', 'blog', 'loyalty'],
@@ -11,7 +11,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
 export function requireFeature(feature: string) {
   return (req: Request, res: Response, next: NextFunction) => {
     const storeId = (req as AuthRequest).storeId || 'main'
-    const sub = dbGet('SELECT * FROM subscriptions WHERE store_id = ? ORDER BY created_at DESC LIMIT 1', [storeId])
+    const sub = findSubscriptionByStore(storeId)
 
     if (!sub) {
       next()
