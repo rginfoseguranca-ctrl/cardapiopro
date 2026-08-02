@@ -1,8 +1,14 @@
 import { Router, Request, Response } from 'express'
-import { dbAll, dbGet, dbRun } from '../database'
+import { printersRepository } from '../repositories/printers'
+import { ordersRepository } from '../repositories/orders'
+import { companySettingsRepository } from '../repositories/fixtures'
 import { AuthRequest } from '../middleware'
 
 const router = Router()
+
+function storeId(req: Request): string | null {
+  return (req as AuthRequest).storeId || 'main'
+}
 
 // Generate kitchen receipt HTML for an order - exported for use in other routes
 export function generateKitchenReceipt(order: any, store: any, printerName: string): string {
@@ -60,22 +66,22 @@ export function generateKitchenReceipt(order: any, store: any, printerName: stri
   </body></html>`
 }
 
-router.get('/', (_req: Request, res: Response) => {
-  const printers = dbAll('SELECT * FROM printers ORDER BY name ASC')
+router.get('/', (req: Request, res: Response) => {
+  const printers = printersRepository.findAll(storeId(req), undefined, [], 'name ASC')
   res.json(printers.map((p: any) => ({ ...p, isActive: !!p.is_active })))
 })
 
 router.post('/', (req: Request, res: Response) => {
   const { name, sector } = req.body
   if (!name) { res.status(400).json({ error: 'Nome obrigatório' }); return }
-  const id = 'prn_' + Date.now()
-  dbRun('INSERT INTO printers (id, name, sector) VALUES (?, ?, ?)', [id, name, sector || 'cozinha'])
-  const printer = dbGet('SELECT * FROM printers WHERE id = ?', [id])
+  const printer = printersRepository.insert(storeId(req), {
+    id: 'prn_' + Date.now(), name, sector: sector || 'cozinha',
+  })
   res.status(201).json({ ...printer, isActive: !!printer.is_active })
 })
 
 router.delete('/:id', (req: Request, res: Response) => {
-  dbRun('DELETE FROM printers WHERE id = ?', [req.params.id])
+  printersRepository.remove(storeId(req), String(req.params.id))
   res.json({ success: true })
 })
 
@@ -83,26 +89,26 @@ router.delete('/:id', (req: Request, res: Response) => {
 router.post('/order/:orderId/print', (req: Request, res: Response) => {
   const { printerId } = req.body
   if (!printerId) { res.status(400).json({ error: 'ID da impressora obrigatório' }); return }
-  
-  const printer = dbGet('SELECT * FROM printers WHERE id = ? AND is_active = 1', [printerId])
+
+  const printer = printersRepository.findOne(storeId(req), 'id = ? AND is_active = 1', [String(printerId)])
   if (!printer) { res.status(404).json({ error: 'Impressora não encontrada ou inativa' }); return }
 
-  const order = dbGet('SELECT * FROM orders WHERE id = ?', [req.params.orderId])
+  const order = ordersRepository.findById(storeId(req), String(req.params.orderId))
   if (!order) { res.status(404).json({ error: 'Pedido não encontrado' }); return }
 
-  const store = dbGet('SELECT * FROM company_settings WHERE id = ?', [order.store_id || 'main'])
+  const store = companySettingsRepository.findById(null, (order as any).store_id || 'main')
   const html = generateKitchenReceipt(order, store, printer.name)
-  
+
   res.send(html)
 })
 
 // Test print endpoint
 router.post('/test/:id', (req: Request, res: Response) => {
-  const printer = dbGet('SELECT * FROM printers WHERE id = ?', [req.params.id])
+  const printer = printersRepository.findById(storeId(req), String(req.params.id))
   if (!printer) { res.status(404).json({ error: 'Impressora não encontrada' }); return }
 
-  const storeId = (req as AuthRequest).storeId || 'main'
-  const store = dbGet('SELECT * FROM company_settings WHERE id = ?', [storeId])
+  const sid = storeId(req)
+  const store = companySettingsRepository.findById(null, sid ?? 'main')
   const storeName = store?.store_name || 'Minha Loja'
   const storeIcon = store?.store_icon || ''
 

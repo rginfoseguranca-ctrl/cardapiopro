@@ -1,71 +1,87 @@
 import { Router, Request, Response } from 'express'
-import { dbAll, dbGet, dbRun } from '../database'
-import { v4 as uuid } from 'uuid'
+import { suppliesRepository, recipeItemsRepository, supplyMovementsRepository } from '../repositories/supplies'
+import { productsRepository } from '../repositories/products'
+import { AuthRequest } from '../middleware'
 
 const router = Router()
 
-// ─── Supplies (Insumos) ───
-router.get('/supplies', (_req: Request, res: Response) => {
-  res.json(dbAll('SELECT * FROM supplies ORDER BY name'))
+function storeId(req: Request): string | null {
+  return (req as AuthRequest).storeId || 'main'
+}
+
+router.get('/supplies', (req: Request, res: Response) => {
+  res.json(suppliesRepository.findAll(storeId(req), undefined, [], 'name'))
 })
 
 router.post('/supplies', (req: Request, res: Response) => {
   const { name, unit, cost, quantity, minQuantity, notes } = req.body
   if (!name) { res.status(400).json({ error: 'Nome é obrigatório' }); return }
-  const id = uuid()
-  dbRun('INSERT INTO supplies (id, name, unit, cost, quantity, min_quantity, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, name, unit || 'un', cost || 0, quantity || 0, minQuantity || 0, notes || ''])
-  const supply = dbGet('SELECT * FROM supplies WHERE id = ?', [id])
+  const supply = suppliesRepository.insert(storeId(req), {
+    name, unit: unit || 'un', cost: cost || 0, quantity: quantity || 0, min_quantity: minQuantity || 0, notes: notes || '',
+  })
   res.status(201).json(supply)
 })
 
 router.put('/supplies/:id', (req: Request, res: Response) => {
   const { name, unit, cost, quantity, minQuantity, notes } = req.body
-  dbRun('UPDATE supplies SET name=?, unit=?, cost=?, quantity=?, min_quantity=?, notes=? WHERE id=?',
-    [name, unit, cost || 0, quantity ?? 0, minQuantity || 0, notes || '', req.params.id])
+  suppliesRepository.update(storeId(req), String(req.params.id), {
+    name, unit, cost: cost || 0, quantity: quantity ?? 0, min_quantity: minQuantity || 0, notes: notes || '',
+  })
   res.json({ success: true })
 })
 
 router.delete('/supplies/:id', (req: Request, res: Response) => {
-  dbRun('DELETE FROM supplies WHERE id = ?', [req.params.id])
+  suppliesRepository.remove(storeId(req), String(req.params.id))
   res.json({ success: true })
 })
 
 router.post('/supplies/:id/movement', (req: Request, res: Response) => {
   const { type, quantity, description } = req.body
   if (!type || !quantity) { res.status(400).json({ error: 'Tipo e quantidade são obrigatórios' }); return }
-  const supply = dbGet('SELECT * FROM supplies WHERE id = ?', [req.params.id])
+  const sid = storeId(req)
+  const supply = suppliesRepository.findById(sid, String(req.params.id))
   if (!supply) { res.status(404).json({ error: 'Insumo não encontrado' }); return }
-  const id = uuid()
   const newQty = type === 'in' ? supply.quantity + quantity : supply.quantity - quantity
-  dbRun('UPDATE supplies SET quantity = ? WHERE id = ?', [Math.max(0, newQty), req.params.id])
-  dbRun('INSERT INTO supply_movements (id, supply_id, type, quantity, description) VALUES (?, ?, ?, ?, ?)',
-    [id, req.params.id, type, quantity, description || ''])
+  suppliesRepository.update(sid, String(req.params.id), { quantity: Math.max(0, newQty) })
+  supplyMovementsRepository.insert(sid, {
+    supply_id: String(req.params.id), type, quantity, description: description || '',
+  })
   res.json({ success: true, newQuantity: Math.max(0, newQty) })
 })
 
 router.get('/supplies/:id/movements', (req: Request, res: Response) => {
-  res.json(dbAll('SELECT * FROM supply_movements WHERE supply_id = ? ORDER BY created_at DESC', [req.params.id]))
+  const rows = supplyMovementsRepository.findAll(storeId(req), 'supply_id = ?', [String(req.params.id)], 'created_at DESC')
+  res.json(rows)
 })
 
-// ─── Recipe Items (Ficha Técnica) ───
-router.get('/recipes', (_req: Request, res: Response) => {
-  res.json(dbAll(`
-    SELECT ri.*, p.name as product_name, s.name as supply_name, s.unit as supply_unit, s.cost as supply_cost
-    FROM recipe_items ri
-    JOIN products p ON p.id = ri.product_id
-    JOIN supplies s ON s.id = ri.supply_id
-    ORDER BY p.name, s.name`))
+router.get('/recipes', (req: Request, res: Response) => {
+  const sid = storeId(req)
+  const rows = recipeItemsRepository.raw(
+    sid,
+    `SELECT ri.*, p.name as product_name, s.name as supply_name, s.unit as supply_unit, s.cost as supply_cost
+     FROM recipe_items ri
+     JOIN products p ON p.id = ri.product_id
+     JOIN supplies s ON s.id = ri.supply_id
+     WHERE ri.store_id = ?
+     ORDER BY p.name, s.name`,
+    [sid ?? 'main']
+  )
+  res.json(rows)
 })
 
 router.get('/recipes/:productId', (req: Request, res: Response) => {
-  const product = dbGet('SELECT * FROM products WHERE id = ?', [req.params.productId])
+  const sid = storeId(req)
+  const productId = String(req.params.productId)
+  const product = productsRepository.findById(sid, productId)
   if (!product) { res.status(404).json({ error: 'Produto não encontrado' }); return }
-  const items = dbAll(`
-    SELECT ri.*, s.name as supply_name, s.unit as supply_unit, s.cost as supply_cost
-    FROM recipe_items ri
-    JOIN supplies s ON s.id = ri.supply_id
-    WHERE ri.product_id = ?`, [req.params.productId])
+  const items = recipeItemsRepository.raw(
+    sid,
+    `SELECT ri.*, s.name as supply_name, s.unit as supply_unit, s.cost as supply_cost
+     FROM recipe_items ri
+     JOIN supplies s ON s.id = ri.supply_id
+     WHERE ri.product_id = ? AND ri.store_id = ?`,
+    [productId, sid ?? 'main']
+  )
   const totalCost = items.reduce((sum: number, i: any) => sum + (i.quantity * i.supply_cost), 0)
   res.json({ product: { id: product.id, name: product.name, price: product.price }, items, totalCost })
 })
@@ -73,24 +89,36 @@ router.get('/recipes/:productId', (req: Request, res: Response) => {
 router.post('/recipes', (req: Request, res: Response) => {
   const { productId, supplyId, quantity } = req.body
   if (!productId || !supplyId || !quantity) { res.status(400).json({ error: 'Dados obrigatórios' }); return }
-  const id = uuid()
-  dbRun('INSERT INTO recipe_items (id, product_id, supply_id, quantity) VALUES (?, ?, ?, ?)',
-    [id, productId, supplyId, quantity])
-  res.status(201).json({ success: true, id })
+  const item = recipeItemsRepository.insert(storeId(req), { product_id: productId, supply_id: supplyId, quantity })
+  res.status(201).json({ success: true, id: item.id })
 })
 
 router.delete('/recipes/:id', (req: Request, res: Response) => {
-  dbRun('DELETE FROM recipe_items WHERE id = ?', [req.params.id])
+  recipeItemsRepository.remove(storeId(req), String(req.params.id))
   res.json({ success: true })
 })
 
-router.get('/cost-analysis', (_req: Request, res: Response) => {
-  const products = dbAll('SELECT id, name, price FROM products WHERE is_available = 1')
+router.get('/cost-analysis', (req: Request, res: Response) => {
+  const sid = storeId(req)
+  const products = productsRepository.raw(
+    sid,
+    'SELECT id, name, price FROM products WHERE is_available = 1 AND store_id = ?',
+    [sid ?? 'main']
+  )
+  const recipeCosts = recipeItemsRepository.raw(
+    sid,
+    `SELECT ri.product_id, ri.quantity, s.cost as supply_cost
+     FROM recipe_items ri
+     JOIN supplies s ON s.id = ri.supply_id
+     WHERE ri.store_id = ?`,
+    [sid ?? 'main']
+  )
+  const byProduct = new Map<string, number>()
+  for (const r of recipeCosts) {
+    byProduct.set(r.product_id, (byProduct.get(r.product_id) || 0) + r.quantity * r.supply_cost)
+  }
   const result = products.map((p: any) => {
-    const items = dbAll(`
-      SELECT ri.quantity, s.cost as supply_cost, s.name as supply_name, s.unit as supply_unit
-      FROM recipe_items ri JOIN supplies s ON s.id = ri.supply_id WHERE ri.product_id = ?`, [p.id])
-    const cost = items.reduce((sum: number, i: any) => sum + (i.quantity * i.supply_cost), 0)
+    const cost = byProduct.get(p.id) || 0
     const margin = p.price > 0 ? ((p.price - cost) / p.price * 100) : 0
     return { ...p, cost, margin: Math.round(margin * 100) / 100 }
   })
