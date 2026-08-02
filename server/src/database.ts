@@ -142,8 +142,10 @@ function initTables() {
   `)
   db.run(`
     CREATE TABLE IF NOT EXISTS store_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      store_id TEXT DEFAULT 'main',
+      PRIMARY KEY (key, store_id)
     )
   `)
   db.run(`
@@ -654,6 +656,7 @@ function runMigrations(): void {
     )
   `)
   addColumnIfMissing('orders', 'store_id', "TEXT DEFAULT ''")
+  dbRun(`UPDATE orders SET store_id = 'main' WHERE store_id = ''`)
   addColumnIfMissing('orders', 'delivery_fee', 'REAL DEFAULT 0')
   addColumnIfMissing('users', 'must_change_password', 'INTEGER DEFAULT 0')
   addColumnIfMissing('users', 'store_id', "TEXT DEFAULT 'main'")
@@ -693,7 +696,74 @@ function runMigrations(): void {
   addColumnIfMissing('combos', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('reviews', 'store_id', "TEXT DEFAULT 'main'")
   addColumnIfMissing('store_settings', 'store_id', "TEXT DEFAULT 'main'")
+  ensureStoreSettingsCompositeKey()
+  rebuildTableWithStoreUnique('tables', 'number')
+  rebuildTableWithStoreUnique('coupons', 'code')
+  rebuildTableWithStoreUnique('blog_posts', 'slug')
   dbRun("UPDATE users SET role = 'super_admin' WHERE email = 'admin@local' AND role != 'super_admin'")
+}
+
+// R5 (auditoria): constraints UNIQUE globais impediam lojas diferentes de usar os
+// mesmos valores (mesa #1, cupom com mesmo código, slug de post). Recria a tabela
+// com UNIQUE composto (coluna, store_id) preservando colunas/dados existentes.
+function rebuildTableWithStoreUnique(table: string, uniqueCol: string): void {
+  try {
+    const meta = dbGet("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", [table])
+    const sql = meta?.sql || ''
+    if (!/\bUNIQUE\b/.test(sql) || /UNIQUE\s*\([^)]*store_id/.test(sql)) return
+    const cols = rawAll(`PRAGMA table_info(${table})`) as any[]
+    const colDefs = cols.map(c => {
+      let dflt = ''
+      if (c.dflt_value != null) {
+        const v = String(c.dflt_value)
+        dflt = /\w+\s*\(/.test(v) ? ` DEFAULT (${v})` : ` DEFAULT ${v}`
+      }
+      return `${c.name} ${c.type}` +
+        (c.notnull ? ' NOT NULL' : '') +
+        dflt +
+        (c.pk ? ' PRIMARY KEY' : '')
+    })
+    const temp = `${table}_storeuniq_tmp`
+    db.run('PRAGMA foreign_keys = OFF')
+    db.run('BEGIN')
+    db.run(`CREATE TABLE ${temp} (${colDefs.join(', ')}, UNIQUE(${uniqueCol}, store_id))`)
+    db.run(`INSERT INTO ${temp} (${cols.map(c => c.name).join(', ')})
+      SELECT ${cols.map(c => c.name).join(', ')} FROM ${table}`)
+    db.run(`DROP TABLE ${table}`)
+    db.run(`ALTER TABLE ${temp} RENAME TO ${table}`)
+    db.run('COMMIT')
+    db.run('PRAGMA foreign_keys = ON')
+    saveDb()
+  } catch (err) {
+    try { db.run('ROLLBACK'); db.run('PRAGMA foreign_keys = ON') } catch { /* sem transação aberta */ }
+    console.error(`[MIGRATION] Falha ao recriar ${table} com UNIQUE por loja:`, err)
+  }
+}
+
+// R1 (auditoria): store_settings tinha PK só por `key`, o que permitia sobrescrita
+// cruzada entre lojas no INSERT OR REPLACE. Recria a tabela com PK composta (key, store_id).
+function ensureStoreSettingsCompositeKey(): void {
+  try {
+    const meta = dbGet("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'store_settings'")
+    const legacyPk = /key\s+TEXT\s+PRIMARY KEY/i.test(meta?.sql || '')
+    if (!legacyPk) return
+    db.run('BEGIN')
+    db.run(`CREATE TABLE store_settings_new (
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      store_id TEXT DEFAULT 'main',
+      PRIMARY KEY (key, store_id)
+    )`)
+    db.run(`INSERT INTO store_settings_new (key, value, store_id)
+      SELECT key, value, COALESCE(NULLIF(store_id, ''), 'main') FROM store_settings`)
+    db.run('DROP TABLE store_settings')
+    db.run('ALTER TABLE store_settings_new RENAME TO store_settings')
+    db.run('COMMIT')
+    saveDb()
+  } catch (err) {
+    try { db.run('ROLLBACK') } catch { /* sem transação aberta */ }
+    console.error('[MIGRATION] Falha ao recriar store_settings com PK composta:', err)
+  }
 }
 
 export { dbAll, dbGet, dbRun, rawAll, rawGet, rawRun }

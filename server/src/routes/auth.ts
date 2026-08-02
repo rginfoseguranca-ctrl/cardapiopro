@@ -261,7 +261,11 @@ router.post('/invite', async (req: Request, res: Response) => {
     log.info({ email, storeId: decoded.storeId }, 'Convite enviado para novo membro')
 
     res.status(201).json({ id: userId, message: 'Convite enviado. Senha temporária gerada.' })
-  } catch {
+  } catch (err: any) {
+    if (err?.message?.includes('UNIQUE')) {
+      res.status(409).json({ error: 'Email já cadastrado em outra loja' })
+      return
+    }
     res.status(401).json({ error: 'Token inválido' })
   }
 })

@@ -157,9 +157,24 @@ webhookRouter.post('/ifood/webhook', (req: Request, res: Response) => {
   if (!event) { res.status(400).json({ error: 'Evento obrigatório' }); return }
 
   if (event === 'order.created') {
+    // Deriva a loja dona do pedido a partir do merchant id configurado por loja
+    // (store_settings.ifood_merchant_id) — antes caía hardcoded em 'main'.
+    const merchantId = String(payload?.merchantId ?? payload?.merchant?.id ?? '').trim()
+    if (!merchantId) { res.status(400).json({ error: 'merchantId obrigatório' }); return }
+
+    const rows = storeSettingsRepository.raw(
+      null,
+      `SELECT store_id, value FROM store_settings WHERE key = 'ifood_merchant_id'`
+    )
+    const merchant = rows.find(r => String(r.value).trim() === merchantId)
+    if (!merchant) {
+      res.status(404).json({ error: 'Merchant não encontrado para esta loja' }); return
+    }
+
+    const storeId = merchant.store_id || 'main'
     const { id, customer, items, total, deliveryAddress } = payload
     const orderId = uuid()
-    ordersRepository.insert('main', {
+    ordersRepository.insert(storeId, {
       id: orderId,
       customer_name: customer?.name || 'iFood',
       customer_phone: customer?.phone || '00000000000',

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { getStoreSetting } from '../repositories/fixtures'
+import { AuthRequest } from '../middleware'
 
 const router = Router()
 
@@ -22,8 +23,8 @@ const responses: { patterns: RegExp[]; reply: string }[] = [
   { patterns: [/tchau|ate mais|ate logo|flw|falou|xau/i], reply: 'Até mais! 🚀 Volte sempre que precisar!' },
 ]
 
-async function aiReply(message: string): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY || getStoreSetting(null, 'openai_api_key')
+async function aiReply(storeId: string, message: string): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY || getStoreSetting(storeId, 'openai_api_key')
   if (!apiKey) return null
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -46,7 +47,7 @@ async function aiReply(message: string): Promise<string | null> {
   }
 }
 
-async function getReply(msg: string): Promise<string> {
+async function getReply(storeId: string, msg: string): Promise<string> {
   for (const r of responses) {
     if (r.patterns.some(p => p.test(msg))) return r.reply
   }
@@ -62,7 +63,7 @@ async function getReply(msg: string): Promise<string> {
 
   if (bestScore > 0) return bestReply
 
-  const ai = await aiReply(msg)
+  const ai = await aiReply(storeId, msg)
   if (ai) return ai
 
   return 'Desculpe, não entendi 😅\n\nTente perguntar sobre:\n• 🍔 Cardápio\n• ⏰ Horários\n• 🚚 Delivery\n• 💳 Pagamentos\n• 📞 Contato\n• ⭐ Fidelidade'
@@ -71,7 +72,8 @@ async function getReply(msg: string): Promise<string> {
 router.post('/', async (req: Request, res: Response) => {
   const { message } = req.body
   if (!message) { res.status(400).json({ error: 'Mensagem obrigatória' }); return }
-  const reply = await getReply(message.toLowerCase().trim())
+  const storeId = (req as AuthRequest).storeId || 'main'
+  const reply = await getReply(storeId, message.toLowerCase().trim())
   res.json({ reply })
 })
 

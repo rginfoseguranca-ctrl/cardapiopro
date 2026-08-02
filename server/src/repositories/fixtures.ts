@@ -32,7 +32,8 @@ export function getStoreSetting(storeId: string | null, key: string): string | n
 export function setStoreSetting(storeId: string | null, key: string, value: string): void {
   if (!key) return
   db.run(
-    'INSERT OR REPLACE INTO store_settings (key, value, store_id) VALUES (?, ?, ?)',
+    `INSERT INTO store_settings (key, value, store_id) VALUES (?, ?, ?)
+     ON CONFLICT(key, store_id) DO UPDATE SET value = excluded.value`,
     [key, String(value ?? ''), storeId ?? 'main']
   )
 }

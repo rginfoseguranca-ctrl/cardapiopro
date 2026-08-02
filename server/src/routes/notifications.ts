@@ -1,15 +1,17 @@
 import { Router, Request, Response } from 'express'
+import { AuthRequest } from '../middleware'
 
 const router = Router()
 
-const clients: Map<string, Set<Response>> = new Map()
-const globalClients: Set<Response> = new Set()
+interface OrderStream { storeId?: string; set: Set<Response> }
+const orderStreams: Map<string, OrderStream> = new Map()
+const globalClients: Map<Response, string> = new Map() // res -> storeId (KDS escopado por loja)
 
-function getClients(orderId: string): Set<Response> {
-  if (!clients.has(orderId)) {
-    clients.set(orderId, new Set())
+function getOrderStream(orderId: string, storeId?: string): OrderStream {
+  if (!orderStreams.has(orderId)) {
+    orderStreams.set(orderId, { storeId, set: new Set() })
   }
-  return clients.get(orderId)!
+  return orderStreams.get(orderId)!
 }
 
 function sanitizeForPublic(data: any) {
@@ -18,31 +20,35 @@ function sanitizeForPublic(data: any) {
   return { ...data, order: rest }
 }
 
-export function notifyOrder(orderId: string, data: object) {
-  const msg = `data: ${JSON.stringify(data)}\n\n`
-  const orderClients = getClients(orderId)
-  orderClients.forEach(res => {
-    try { res.write(msg) } catch { orderClients.delete(res) }
+function writeSafely(set: Set<Response>, msg: string) {
+  set.forEach(res => {
+    try { res.write(msg) } catch { set.delete(res) }
   })
 }
 
-export function notifyAll(data: object) {
+export function notifyOrder(orderId: string, data: object, storeId?: string) {
   const msg = `data: ${JSON.stringify(data)}\n\n`
-  // Send to order-specific clients
-  clients.forEach((orderClients) => {
-    orderClients.forEach(res => {
-      try { res.write(msg) } catch { orderClients.delete(res) }
-    })
+  const stream = getOrderStream(orderId, storeId)
+  writeSafely(stream.set, msg)
+}
+
+export function notifyAll(data: object, storeId?: string) {
+  // Todos os streams recebem o payload sanitizado (sem PII).
+  const msg = `data: ${JSON.stringify(sanitizeForPublic(data))}\n\n`
+  // Order-specific streams — filtrados por loja (null não recebe nada quando há contexto).
+  orderStreams.forEach((stream) => {
+    if (storeId == null || stream.storeId !== storeId) return
+    writeSafely(stream.set, msg)
   })
-  // Send to global stream clients (KDS) — PII redacted
-  const sanitized = sanitizeForPublic(data)
-  const sanitizedMsg = `data: ${JSON.stringify(sanitized)}\n\n`
-  globalClients.forEach(res => {
-    try { res.write(sanitizedMsg) } catch { globalClients.delete(res) }
+  // Global stream clients (KDS) — escopados por loja.
+  globalClients.forEach((resStoreId, res) => {
+    if (storeId == null || resStoreId !== storeId) return
+    try { res.write(msg) } catch { globalClients.delete(res) }
   })
 }
 
 router.get('/stream', (req: Request, res: Response) => {
+  const storeId = (req as AuthRequest).storeId || 'main'
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -50,7 +56,7 @@ router.get('/stream', (req: Request, res: Response) => {
   })
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`)
 
-  globalClients.add(res)
+  globalClients.set(res, storeId)
 
   const keepAlive = setInterval(() => {
     try { res.write(': keepalive\n\n') } catch { clearInterval(keepAlive) }
@@ -64,25 +70,26 @@ router.get('/stream', (req: Request, res: Response) => {
 
 router.get('/order/:id/stream', (req: Request, res: Response) => {
   const orderId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+  const storeId = (req as AuthRequest).storeId
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   })
   res.write(`data: ${JSON.stringify({ type: 'connected', orderId })}\n\n`)
-  
-  const orderClients = getClients(orderId)
-  orderClients.add(res)
-  
+
+  const stream = getOrderStream(orderId, storeId)
+  stream.set.add(res)
+
   const keepAlive = setInterval(() => {
     try { res.write(': keepalive\n\n') } catch { clearInterval(keepAlive) }
   }, 30000)
 
   req.on('close', () => {
     clearInterval(keepAlive)
-    orderClients.delete(res)
-    if (orderClients.size === 0) {
-      clients.delete(orderId)
+    stream.set.delete(res)
+    if (stream.set.size === 0) {
+      orderStreams.delete(orderId)
     }
   })
 })

@@ -202,3 +202,26 @@ Sempre que implementar uma funcionalidade, ela DEVE funcionar em:
 - Server: 97/97 testes (13 arquivos; store-scope.test removido)
 - `npx tsc --noEmit` limpo em server/, client/ e desktop/
 - Próximas fases (futuras): 2.3/2.4 → 3 (auditoria) → 5 (testes) → 6 (limpeza)
+
+### 2026-08-02 — Sessão 8: Auditoria de isolamento por loja (Fase 3) — correções R1–R9
+
+**Auditoria (subagente explore):** isolamento básico confirmado OK em `base.ts`, services e rotas migradas; achados R1–R9 corrigidos:
+
+- **R1 (crítico)** — `store_settings` tinha PK só por `key` → `INSERT OR REPLACE` sobrescrevia entre lojas. Migration `ensureStoreSettingsCompositeKey()` recria a tabela com `PRIMARY KEY (key, store_id)` (BEGIN/ROLLBACK); CREATE TABLE de novos bancos já com PK composta; `fixtures.ts setStoreSetting` → `INSERT ... ON CONFLICT(key, store_id) DO UPDATE`
+- **R2 (crítico)** — webhook iFood (`routes/integrations.ts`) inseria pedido hardcoded em `'main'`. Agora deriva a loja por `store_settings.ifood_merchant_id` (raw), `404 'Merchant não encontrado'` se não achar, e insere com o `storeId` derivado
+- **R3 (alto)** — `notifyAll` enviava payload não-sanitizado para streams de *todas* as lojas. `routes/notifications.ts` reescrito: `orderStreams: Map<string, { storeId?: string; set }>` e `globalClients: Map<Response, string>` (KDS escopado); `notifyOrder/notifyAll(data, storeId?)` filtram por loja e sanitizam TODOS os streams; `/stream` e `/order/:id/stream` usam `req.storeId`
+- **R4 (médio)** — `processScheduledOrders` em `index.ts` usava `dbAll/dbRun` sem loja. Substituído por `OrderService.confirmScheduledOrders()` (lê via `ordersRepository.raw(null, ...)`, atualiza por `storeId`, `notifyAll(..., storeId)`); `index.ts` perdeu imports `dbAll/dbGet/dbRun`; `/api/notifications` ganhou `resolveStoreScope`
+- **R5 (médio)** — UNIQUE globais em `tables.number`, `coupons.code`, `blog_posts.slug` (lojas não podiam repetir mesa #1/código/slug). Migration `rebuildTableWithStoreUnique(table, col)` recria cada tabela com `UNIQUE(col, store_id)` (guarda idempotente via regex no SQL); `auth.ts` catch de `UNIQUE` no invite → `409`
+- **R6 (médio)** — refs cruzadas sem validação e JOINs sem filtro de loja: `CatalogService.createProduct/updateProduct` validam `categoryId` da loja; `ComplementService.createGroup/createComplement` validam `productId`/`groupId` (`httpError 400`); `reviews.ts` POST valida produto da loja; JOINs de `listCatalogProducts`/`findCatalogProductById`/`listGroupsWithProduct` ganharam `AND c.store_id = p.store_id` / `AND p.store_id = cg.store_id`
+- **R7 (baixo)** — `calculateComplementPrice` usava `complementIds.length`; agora `extraCount = max(0, items.length - maxFree)` (só complementos existentes na loja)
+- **R8 (médio)** — `orders.store_id DEFAULT ''` → migration `UPDATE orders SET store_id = 'main' WHERE store_id = ''`
+- **R9 (médio)** — `chat.ts` usava `getStoreSetting(null, 'openai_api_key')`; agora `aiReply(storeId, ...)`/`getReply(storeId, ...)` com `req.storeId || 'main'`
+
+**Detalhes técnicos:**
+- Bug da rebuild de tabela: `PRAGMA table_info` devolve `dflt_value` como `datetime('now')` **sem** parênteses externos → `DEFAULT datetime('now')` quebrava o CREATE. Fix: `dflt = /\w+\s*\(/.test(v) ? \` DEFAULT (${v})\` : \` DEFAULT ${v}\``
+- `server/src/__tests__/audit-isolation.test.ts` (novo, 7 testes): R1 coexistência por loja, R5 mesma mesa #1/cupom, R6 refs cruzadas x3, review cross-store → 400, review válido → 201 (cria stores `SLUG_A/B` p/ o `resolveStoreScope`; app de teste com `express.json()` — sem ele `req.body` fica undefined e a rota dá 500)
+
+**Verificação final (tudo verde):**
+- Server: 104/104 testes (14 arquivos; +7 novos de auditoria)
+- `npx tsc --noEmit` limpo em server/, client/ e desktop/
+- Próximas fases (futuras): 2.3/2.4 → 5 (testes) → 6 (limpeza)

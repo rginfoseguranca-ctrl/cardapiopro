@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { reviewsRepository } from '../repositories/reviews'
+import { productsRepository } from '../repositories/products'
 import { AuthRequest } from '../middleware'
 
 const router = Router()
@@ -38,7 +39,11 @@ router.post('/', (req: Request, res: Response) => {
   if (!productId || !customerName || !rating || rating < 1 || rating > 5) {
     res.status(400).json({ error: 'Dados inválidos' }); return
   }
-  const review = reviewsRepository.insert(storeId(req), {
+  const sid = storeId(req)
+  if (!productsRepository.findById(sid, String(productId))) {
+    res.status(400).json({ error: 'Produto não encontrado' }); return
+  }
+  const review = reviewsRepository.insert(sid, {
     product_id: productId, customer_name: customerName, rating, comment: comment || '',
   })
   res.status(201).json(review)

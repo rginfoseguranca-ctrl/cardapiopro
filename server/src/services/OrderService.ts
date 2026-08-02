@@ -309,7 +309,7 @@ export function createOrder(storeId: string, input: CreateOrderInput): Record<st
     console.error('Error decrementing inventory:', err)
   }
 
-  notifyAll({ type: 'new_order', order: { id, total, deliveryType } })
+  notifyAll({ type: 'new_order', order: { id, total, deliveryType } }, storeId)
 
   // Award loyalty points on order creation
   try {
@@ -480,6 +480,27 @@ export function updateOrderStatus(storeId: string, id: string, status: string): 
 
 export function markPrinted(storeId: string, id: string): void {
   ordersRepository.update(storeId, id, { printed: 1 })
+}
+
+export function confirmScheduledOrders(): void {
+  const now = new Date().toISOString()
+  const rows = ordersRepository.raw(
+    null,
+    'SELECT * FROM orders WHERE scheduled_at IS NOT NULL AND scheduled_at <= ? AND status = ?',
+    [now, 'pending']
+  )
+  for (const order of rows) {
+    const storeId = order.store_id || 'main'
+    ordersRepository.update(storeId, order.id, {
+      status: 'confirmed',
+      scheduled_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    notifyAll(
+      { type: 'new_order', order: { id: order.id, total: order.total, deliveryType: order.delivery_type } },
+      storeId
+    )
+  }
 }
 
 export function updatePaymentStatus(storeId: string, id: string, paymentStatus: string): Record<string, any> {

@@ -5,7 +5,7 @@ import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 import path from 'path'
 import * as Sentry from '@sentry/node'
-import { initDatabase, dbGet, dbAll, dbRun } from './database'
+import { initDatabase } from './database'
 import { logger, createChildLogger } from './logger'
 import productsRouter from './routes/products'
 import ordersRouter from './routes/orders'
@@ -48,34 +48,10 @@ import billingRouter from './routes/billing'
 import saasAdminRouter from './routes/saas-admin'
 import { errorHandler, authMiddleware, adminMiddleware, resolveStoreScope, idempotencyMiddleware } from './middleware'
 import { requireFeature } from './middleware/plan-gate'
-import { notifyAll } from './routes/notifications'
+import { confirmScheduledOrders } from './services/OrderService'
 import { setupSwagger } from './swagger'
 
 const serverLog = createChildLogger('server')
-
-function processScheduledOrders() {
-  try {
-    const now = new Date().toISOString()
-    const scheduledOrders = dbAll(
-      'SELECT * FROM orders WHERE scheduled_at IS NOT NULL AND scheduled_at <= ? AND status = ?',
-      [now, 'pending']
-    )
-    for (const order of scheduledOrders) {
-      dbRun('UPDATE orders SET status = ?, scheduled_at = NULL, updated_at = datetime("now") WHERE id = ?',
-        ['confirmed', order.id])
-      notifyAll({ type: 'new_order', order: {
-        id: order.id,
-        customerName: order.customer_name,
-        total: order.total,
-        paymentMethod: order.payment_method,
-        deliveryType: order.delivery_type
-      }})
-      serverLog.info({ orderId: order.id }, 'Pedido agendado confirmado')
-    }
-  } catch (err) {
-    serverLog.error({ err }, 'Erro ao processar pedidos agendados')
-  }
-}
 
 async function main() {
   await initDatabase()
@@ -188,7 +164,7 @@ async function main() {
   app.use('/api/promotions', resolveStoreScope, promotionsRouter)
   app.use('/api/reviews', resolveStoreScope, reviewsRouter)
   app.use('/api/chat', resolveStoreScope, chatRouter)
-  app.use('/api/notifications', notificationsRouter)
+  app.use('/api/notifications', resolveStoreScope, notificationsRouter)
   app.use('/api/viacep', viacepRouter)
   app.use('/api/webhooks/payment', paymentWebhooksRouter)
   app.use('/api/webhooks/integrations', integrationsWebhookRouter)
@@ -253,7 +229,9 @@ async function main() {
     serverLog.info({ port: PORT }, `Servidor rodando em http://localhost:${PORT}`)
   })
 
-  setInterval(processScheduledOrders, 60000)
+  setInterval(() => {
+    try { confirmScheduledOrders() } catch (err) { serverLog.error({ err }, 'Erro ao processar pedidos agendados') }
+  }, 60000)
 
   process.on('SIGTERM', () => {
     serverLog.info('SIGTERM recebido. Desligando graciosamente...')

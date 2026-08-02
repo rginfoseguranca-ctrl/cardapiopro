@@ -93,6 +93,9 @@ export interface CreateProductInput {
 }
 
 export function createProduct(storeId: string | null, input: CreateProductInput): ProductDTO | null {
+  if (input.categoryId && !categoriesRepository.findById(storeId, input.categoryId)) {
+    throw httpError(400, 'Categoria não encontrada na loja')
+  }
   const id = uuid()
   productsRepository.insert(storeId, {
     id,
@@ -111,6 +114,9 @@ export function createProduct(storeId: string | null, input: CreateProductInput)
 }
 
 export function updateProduct(storeId: string | null, id: string, body: Record<string, any>): ProductDTO | null {
+  if (body.categoryId && !categoriesRepository.findById(storeId, body.categoryId)) {
+    throw httpError(400, 'Categoria não encontrada na loja')
+  }
   const allowed: Record<string, (v: any) => any> = {
     name: v => v,
     description: v => v || '',

@@ -4,7 +4,9 @@ import {
   findGroupsByProduct, findAvailableComplementsByGroup, listGroupsWithProduct,
   findGroupById, findComplementsByIds, GroupWithProduct,
 } from '../repositories/complements'
+import { productsRepository } from '../repositories/products'
 import { ComplementGroup, Complement } from '../repositories/types'
+import { httpError } from './http'
 
 export interface ComplementGroupDTO {
   id: string
@@ -77,6 +79,9 @@ export interface CreateGroupInput {
 }
 
 export function createGroup(storeId: string | null, input: CreateGroupInput): ComplementGroupDTO | null {
+  if (!productsRepository.findById(storeId, input.productId)) {
+    throw httpError(400, 'Produto não encontrado na loja')
+  }
   const id = uuid()
   complementGroupsRepository.insert(storeId, {
     id,
@@ -115,6 +120,9 @@ export interface CreateComplementInput {
 }
 
 export function createComplement(storeId: string | null, input: CreateComplementInput): ComplementDTO | null {
+  if (!complementGroupsRepository.findById(storeId, input.groupId)) {
+    throw httpError(400, 'Grupo de complementos não encontrado na loja')
+  }
   const id = uuid()
   complementsRepository.insert(storeId, {
     id,
@@ -159,6 +167,6 @@ export function calculateComplementPrice(
   const items = findComplementsByIds(storeId, complementIds)
   const totalPrice = items.reduce((sum, c) => sum + (Number(c.price) || 0), 0)
   const maxFree = group ? (group.type === 'radio' ? 1 : group.min) : complementIds.length
-  const extraCount = Math.max(0, complementIds.length - maxFree)
+  const extraCount = Math.max(0, items.length - maxFree)
   return { price: totalPrice, extraCount }
 }

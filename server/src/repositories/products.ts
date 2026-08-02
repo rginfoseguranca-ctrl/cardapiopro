@@ -22,7 +22,9 @@ interface ListCatalogOptions {
 }
 
 export function listCatalogProducts(storeId: string | null, opts: ListCatalogOptions = {}): CatalogRow[] {
-  const join = opts.leftJoin ? 'LEFT JOIN categories c ON c.id = p.category_id' : 'JOIN categories c ON c.id = p.category_id'
+  const join = opts.leftJoin
+    ? 'LEFT JOIN categories c ON c.id = p.category_id AND c.store_id = p.store_id'
+    : 'JOIN categories c ON c.id = p.category_id AND c.store_id = p.store_id'
   const where: string[] = []
   const params: any[] = []
   if (storeId != null) { where.push('p.store_id = ?'); params.push(storeId) }
@@ -41,7 +43,7 @@ export function findCatalogProductById(storeId: string | null, id: string): Cata
   const rows = productsRepository.raw(
     storeId,
     `SELECT p.*, c.name as category_name, c.icon as category_icon
-     FROM products p LEFT JOIN categories c ON c.id = p.category_id
+     FROM products p LEFT JOIN categories c ON c.id = p.category_id AND c.store_id = p.store_id
      WHERE p.id = ? AND p.store_id = ?`,
     [id, storeId ?? 'main']
   )

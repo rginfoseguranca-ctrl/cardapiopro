@@ -31,7 +31,7 @@ export function listGroupsWithProduct(storeId: string | null): GroupWithProduct[
   return complementGroupsRepository.raw(
     storeId,
     `SELECT cg.*, p.name as product_name
-     FROM complement_groups cg JOIN products p ON p.id = cg.product_id
+     FROM complement_groups cg JOIN products p ON p.id = cg.product_id AND p.store_id = cg.store_id
      ${where} ORDER BY p.name, cg.name`,
     params
   ) as GroupWithProduct[]
