@@ -1,12 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { inventoryRepository, inventoryMovementsRepository } from '../repositories/inventory'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/', (req: Request, res: Response) => {
   const items = inventoryRepository.findAll(storeId(req), undefined, [], 'product_name ASC')

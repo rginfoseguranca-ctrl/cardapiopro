@@ -1,19 +1,12 @@
 import { Router, Request, Response } from 'express'
-import { authMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware } from '../middleware'
 import {
   listGroupsByProduct, listAllGroups, createGroup, updateGroup, deleteGroup,
   createComplement, updateComplement, deleteComplement, calculateComplementPrice,
 } from '../services/ComplementService'
+import { storeId, param } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
-
-function param(req: Request, name: string): string {
-  return String((req.params as Record<string, string | undefined>)[name] ?? '')
-}
 
 router.get('/groups/:productId', (req: Request, res: Response) => {
   res.json(listGroupsByProduct(storeId(req), param(req, 'productId')))

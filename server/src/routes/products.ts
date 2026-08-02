@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { authMiddleware, planLimitMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware, planLimitMiddleware } from '../middleware'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
@@ -8,6 +8,7 @@ import {
   updateProduct, deleteProduct, listProductCategories, createCategory,
   updateCategory, deleteCategory,
 } from '../services/CatalogService'
+import { storeId, param } from './helpers'
 
 const router = Router()
 
@@ -31,14 +32,6 @@ const upload = multer({
     cb(null, true)
   }
 })
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
-
-function param(req: Request, name: string): string {
-  return String((req.params as Record<string, string | undefined>)[name] ?? '')
-}
 
 router.get('/', (req: Request, res: Response) => {
   res.json(listMenuProducts(storeId(req)))

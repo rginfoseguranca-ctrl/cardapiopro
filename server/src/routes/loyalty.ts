@@ -1,12 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { loyaltyPointsRepository, loyaltyRewardsRepository } from '../repositories/loyalty'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/points/:customerId', (req: Request, res: Response) => {
   const customerId = String(req.params.customerId)

@@ -2,13 +2,9 @@ import { Router, Request, Response } from 'express'
 import { invoicesRepository, nextNfeNumber } from '../repositories/invoices'
 import { ordersRepository } from '../repositories/orders'
 import { productsRepository } from '../repositories/products'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/', (req: Request, res: Response) => {
   res.json(invoicesRepository.findAll(storeId(req), undefined, [], 'created_at DESC'))

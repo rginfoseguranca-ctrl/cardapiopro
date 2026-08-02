@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { storeSettingsRepository, setStoreSetting } from '../repositories/fixtures'
 import { ordersRepository } from '../repositories/orders'
-import { AuthRequest } from '../middleware'
 import { v4 as uuid } from 'uuid'
+import { storeId as getStoreId } from './helpers'
 
 interface IntegrationConfig {
   key: string
@@ -110,7 +110,7 @@ const integrationDefs: IntegrationConfig[] = [
 const adminRouter = Router()
 
 adminRouter.get('/', (req: Request, res: Response) => {
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   const allKeys = integrationDefs.flatMap(i => i.fields.map(f => f.key))
   const placeholders = allKeys.map(() => '?').join(',')
   const rows = storeSettingsRepository.raw(
@@ -141,7 +141,7 @@ adminRouter.get('/', (req: Request, res: Response) => {
 adminRouter.post('/', (req: Request, res: Response) => {
   const { key, value } = req.body
   if (!key) { res.status(400).json({ error: 'Chave obrigatória' }); return }
-  setStoreSetting((req as AuthRequest).storeId || 'main', key, String(value))
+  setStoreSetting(getStoreId(req), key, String(value))
   res.json({ key, value })
 })
 

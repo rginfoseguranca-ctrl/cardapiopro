@@ -1,15 +1,11 @@
 import { Router, Request, Response } from 'express'
 import { cashbackTransactionsRepository } from '../repositories/loyalty'
 import { getStoreSetting, setStoreSetting } from '../repositories/fixtures'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
 
 const CASHBACK_PERCENTAGE = 5 // 5% de cashback por pedido
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/balance/:customerId', (req: Request, res: Response) => {
   const customerId = String(req.params.customerId)

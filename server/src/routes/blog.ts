@@ -1,12 +1,9 @@
 import { Router, Request, Response } from 'express'
 import { blogPostsRepository, findBlogBySlug } from '../repositories/blog-posts'
-import { authMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/', (req: Request, res: Response) => {
   const posts = blogPostsRepository.findAll(storeId(req), 'is_published = 1', [], 'created_at DESC')

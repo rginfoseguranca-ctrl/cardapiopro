@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { getStoreSetting } from '../repositories/fixtures'
-import { AuthRequest } from '../middleware'
+import { storeId as getStoreId } from './helpers'
 
 const router = Router()
 
@@ -72,7 +72,7 @@ async function getReply(storeId: string, msg: string): Promise<string> {
 router.post('/', async (req: Request, res: Response) => {
   const { message } = req.body
   if (!message) { res.status(400).json({ error: 'Mensagem obrigatória' }); return }
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   const reply = await getReply(storeId, message.toLowerCase().trim())
   res.json({ reply })
 })

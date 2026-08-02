@@ -3,13 +3,9 @@ import {
   financialAccountsRepository, financialCategoriesRepository,
   financialTransactionsRepository, financialRecurringRepository,
 } from '../repositories/finance'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/accounts', (req: Request, res: Response) => {
   const accounts = financialAccountsRepository.findAll(storeId(req), undefined, [], 'name')

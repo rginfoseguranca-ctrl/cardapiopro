@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { AuthRequest } from '../middleware'
+import { storeId as getStoreId } from './helpers'
 
 const router = Router()
 
@@ -48,7 +49,7 @@ export function notifyAll(data: object, storeId?: string) {
 }
 
 router.get('/stream', (req: Request, res: Response) => {
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',

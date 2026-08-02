@@ -1,12 +1,9 @@
 import { Router, Request, Response } from 'express'
 import { tablesRepository } from '../repositories/tables'
-import { authMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.patch('/:id/occupy', authMiddleware, (req: Request, res: Response) => {
   const { id } = req.params

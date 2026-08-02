@@ -2,13 +2,10 @@ import { Router, Request, Response } from 'express'
 import { campaignsRepository } from '../repositories/campaigns'
 import { customersRepository } from '../repositories/customers'
 import { getStoreSetting } from '../repositories/fixtures'
-import { authMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/', authMiddleware, (req: Request, res: Response) => {
   const campaigns = campaignsRepository.findAll(storeId(req), undefined, [], 'created_at DESC')

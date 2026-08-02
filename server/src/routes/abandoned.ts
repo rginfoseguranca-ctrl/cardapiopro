@@ -1,12 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { abandonedCartsRepository } from '../repositories/abandoned-carts'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/', (req: Request, res: Response) => {
   const carts = abandonedCartsRepository.findAll(storeId(req), undefined, [], 'created_at DESC')

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
-import { authMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware } from '../middleware'
 import { createSubscription, findSubscriptionByStore, updateSubscriptionByStore } from '../repositories/global'
+import { storeId as getStoreId } from './helpers'
 
 const router = Router()
 
@@ -36,7 +37,7 @@ router.get('/plans', (_req: Request, res: Response) => {
 })
 
 router.get('/subscription', authMiddleware, (req: Request, res: Response) => {
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   let sub = findSubscriptionByStore(storeId)
 
   if (!sub) {
@@ -67,14 +68,14 @@ router.post('/checkout', authMiddleware, (req: Request, res: Response) => {
     return
   }
 
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   updateSubscriptionByStore(storeId, { plan, status: 'active' })
 
   res.json({ success: true, plan: PLANS[plan as keyof typeof PLANS], message: 'Plano ativado com sucesso!' })
 })
 
 router.post('/portal', authMiddleware, (req: Request, res: Response) => {
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   const sub = findSubscriptionByStore(storeId)
 
   if (!sub) {

@@ -3,6 +3,7 @@ import multer from 'multer'
 import path from 'path'
 import { companySettingsRepository, storesRepository } from '../repositories/fixtures'
 import { authMiddleware, AuthRequest } from '../middleware'
+import { storeId as getStoreId } from './helpers'
 
 const router = Router()
 
@@ -100,7 +101,7 @@ router.get('/', (req: Request, res: Response) => {
 })
 
 router.put('/', authMiddleware, (req: Request, res: Response) => {
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   const mapping: Record<string, string> = {
     storeName: 'store_name', storeIcon: 'store_icon', primaryColor: 'primary_color',
     primaryDark: 'primary_dark', paymentPixKey: 'payment_pix_key',
@@ -126,7 +127,7 @@ router.put('/', authMiddleware, (req: Request, res: Response) => {
 router.get('/pix/:amount/:orderId', (req: Request, res: Response) => {
   const amount = parseFloat(Array.isArray(req.params.amount) ? req.params.amount[0] : req.params.amount)
   const orderId = Array.isArray(req.params.orderId) ? req.params.orderId[0] : req.params.orderId
-  const settings = companySettingsRepository.findById(null, (req as AuthRequest).storeId || 'main')
+  const settings = companySettingsRepository.findById(null, getStoreId(req))
   
   if (!settings || !settings.payment_pix_key) {
     res.status(400).json({ error: 'PIX não configurado' })
@@ -152,7 +153,7 @@ router.get('/pix/:amount/:orderId', (req: Request, res: Response) => {
 router.post('/logo', authMiddleware, upload.single('logo'), (req: Request, res: Response) => {
   if (!req.file) { res.status(400).json({ error: 'Nenhuma imagem enviada' }); return }
   const logoUrl = `/uploads/${req.file.filename}`
-  companySettingsRepository.update(null, (req as AuthRequest).storeId || 'main', { logo_url: logoUrl })
+  companySettingsRepository.update(null, getStoreId(req), { logo_url: logoUrl })
   res.json({ logoUrl })
 })
 

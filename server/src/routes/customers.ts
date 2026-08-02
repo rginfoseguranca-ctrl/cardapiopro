@@ -3,13 +3,9 @@ import { customersRepository, findCustomerByPhone } from '../repositories/custom
 import { ordersRepository } from '../repositories/orders'
 import { cashbackTransactionsRepository } from '../repositories/loyalty'
 import { loyaltyPointsRepository } from '../repositories/loyalty'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/phone/:phone/orders', (req: Request, res: Response) => {
   const phone = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone

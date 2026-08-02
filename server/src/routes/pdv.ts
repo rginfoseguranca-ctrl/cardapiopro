@@ -3,7 +3,8 @@ import { categoriesRepository } from '../repositories/categories'
 import { listCatalogProducts } from '../repositories/products'
 import { complementGroupsRepository, complementsRepository } from '../repositories/complements'
 import { customersRepository } from '../repositories/customers'
-import { authMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware } from '../middleware'
+import { storeId as getStoreId } from './helpers'
 
 function mapGroup(g: any) {
   return {
@@ -33,7 +34,7 @@ function mapComplement(c: any) {
 const router = Router()
 
 router.get('/products', authMiddleware, (req: Request, res: Response) => {
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
 
   const categories = categoriesRepository.findAll(storeId, 'is_active = 1', [], '"order"')
   const products = listCatalogProducts(storeId, { availableOnly: true, leftJoin: true })
@@ -61,7 +62,7 @@ router.get('/products', authMiddleware, (req: Request, res: Response) => {
 
 router.get('/customers', authMiddleware, (req: Request, res: Response) => {
   const q = (req.query.q as string || '').trim()
-  const storeId = (req as AuthRequest).storeId || 'main'
+  const storeId = getStoreId(req)
   if (!q) { res.json([]); return }
   const like = `%${q}%`
   const results = customersRepository.raw(

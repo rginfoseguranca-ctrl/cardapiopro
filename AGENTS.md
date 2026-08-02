@@ -265,3 +265,26 @@ Sempre que implementar uma funcionalidade, ela DEVE funcionar em:
 - Server: 115/115 testes (15 arquivos; +11 novos de isolamento de rotas)
 - `npx tsc --noEmit` limpo em server/
 - Próxima fase (futura): 6 (limpeza: aliases `dbAll/dbGet/dbRun` no `database.ts` + centralizar `storeId`/`param`)
+
+### 2026-08-02 — Sessão 11: Fase 6 — centralização dos helpers `storeId`/`param`
+
+**Motivação:** os helpers `storeId(req)` (fallback `'main'`) e `param(req, name)` (Express 5 params `string | string[]`) estavam duplicados localmente em ~24 rotas (marcados como candidatos à centralização na Sessão 9), além de ~38 usos inline de `(req as AuthRequest).storeId || 'main'`.
+
+**O que foi feito:**
+- `server/src/routes/helpers.ts` (novo): `storeId(req): string` e `param(req, name): string` — mesmos corpos das versões locais, exportados de um único lugar
+- **24 rotas** tiveram a `function storeId` local removida e passam a importar o helper (`abandoned`, `blog`, `campaigns`, `cash-register`, `cashback`, `complements`, `coupons`, `customers`, `customers-public`, `delivery`, `drivers`, `fiado`, `finance`, `inventory`, `invoices`, `loyalty`, `orders`, `printers`, `products`, `promotions`, `reviews`, `supplies`, `tables`, `tables-ext`)
+- `products.ts`, `complements.ts`, `orders.ts` também tinham `param` local → removida, agora importam `{ storeId, param }`
+- **6 rotas com `const storeId = (req as AuthRequest).storeId || 'main'` inline** passam a importar com alias `import { storeId as getStoreId } from './helpers'` e usam `getStoreId(req)` (evita colisão com a const local): `billing`, `chat`, `integrations`, `notifications`, `pdv`, `store`
+- `dashboard.ts`: `const sid = (req as AuthRequest).storeId || 'main'` → `const sid = storeId(req)` (lógica de super_admin do `storeScope()` preservada)
+- Imports `AuthRequest` órfãos removidos/limpos do `import ... from '../middleware'` (ex.: `customers-public`, `fiado`, `inventory`, `drivers`, `finance`, `cashback`, `abandoned`, `invoices`, `cash-register`, `printers`, `promotions`, `reviews`, `supplies`, `tables`, `chat`, `integrations`; `{ authMiddleware, ... }` mantém só o que usa)
+- **`delivery-areas.ts` NÃO foi tocado** — sua versão tem fallback extra `|| (req.query.storeId as string)` (comportamento preservado, fica local por enquanto)
+- `store.ts` também mantém a variante com `req.query.storeId` na rota GET (linha 64)
+
+**Detalhes técnicos:**
+- Transformação feita por script Node (`dedupe-helpers.js` em temp, descartável) com regex sobre os corpos exatos; arquivos normalizados para LF (git checkou CRLF após `git checkout`, quebrando as regexes na primeira tentativa)
+- Bugs pegos na revisão: inserção de import no meio de bloco import multilinha (products/complements/orders) → o script caminha até o fim do import (`/[;']$/`) antes de inserir; double-space `import {  authMiddleware` vindo de `pre` com espaço inicial → `^\s*,?\s*` no cleanup do import
+
+**Verificação final (tudo verde):**
+- Server: 115/115 testes (15 arquivos — sem testes novos, refatoração puramente estrutural)
+- `npx tsc --noEmit` limpo em server/
+- Próximo item da Fase 6 (futuro): remover aliases `dbAll/dbGet/dbRun` do `database.ts` (linhas ~604–613; export na ~769; usados só internamente e em testes)

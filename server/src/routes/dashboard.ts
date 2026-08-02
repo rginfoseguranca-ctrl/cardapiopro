@@ -1,13 +1,14 @@
 import { Router, Request, Response } from 'express'
 import { ordersRepository } from '../repositories/orders'
 import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
 
 function storeScope(req: Request): { sid: string | null; params: any[] } {
   const user = (req as AuthRequest).user
   if (user?.role === 'super_admin') return { sid: null, params: [] }
-  const sid = (req as AuthRequest).storeId || 'main'
+  const sid = storeId(req)
   return { sid, params: [sid] }
 }
 

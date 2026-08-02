@@ -1,13 +1,9 @@
 import { Router, Request, Response } from 'express'
 import { suppliesRepository, recipeItemsRepository, supplyMovementsRepository } from '../repositories/supplies'
 import { productsRepository } from '../repositories/products'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/supplies', (req: Request, res: Response) => {
   res.json(suppliesRepository.findAll(storeId(req), undefined, [], 'name'))

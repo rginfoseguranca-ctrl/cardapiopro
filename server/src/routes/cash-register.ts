@@ -1,13 +1,9 @@
 import { Router, Request, Response } from 'express'
 import { cashRegisterRepository } from '../repositories/cash-register'
 import { ordersRepository } from '../repositories/orders'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 router.get('/', (req: Request, res: Response) => {
   const sid = storeId(req)

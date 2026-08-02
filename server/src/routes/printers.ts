@@ -2,13 +2,9 @@ import { Router, Request, Response } from 'express'
 import { printersRepository } from '../repositories/printers'
 import { ordersRepository } from '../repositories/orders'
 import { companySettingsRepository } from '../repositories/fixtures'
-import { AuthRequest } from '../middleware'
+import { storeId } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string | null {
-  return (req as AuthRequest).storeId || 'main'
-}
 
 // Generate kitchen receipt HTML for an order - exported for use in other routes
 export function generateKitchenReceipt(order: any, store: any, printerName: string): string {

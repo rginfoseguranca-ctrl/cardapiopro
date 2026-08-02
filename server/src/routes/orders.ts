@@ -1,20 +1,13 @@
 import { Router, Request, Response } from 'express'
-import { authMiddleware, AuthRequest } from '../middleware'
+import { authMiddleware } from '../middleware'
 import { escapeHtml } from '../database'
 import {
   createOrder, listOrders, getOrderById, getOrderReceipt,
   updateOrderStatus, markPrinted, updatePaymentStatus,
 } from '../services/OrderService'
+import { storeId, param } from './helpers'
 
 const router = Router()
-
-function storeId(req: Request): string {
-  return (req as AuthRequest).storeId || 'main'
-}
-
-function param(req: Request, name: string): string {
-  return String((req.params as Record<string, string | undefined>)[name] ?? '')
-}
 
 router.get('/', authMiddleware, (req: Request, res: Response) => {
   const since = req.query.since as string | undefined
